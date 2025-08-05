@@ -8,6 +8,8 @@ use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
+use lr2021_apps::lr2021::status::Status;
+
 /// Task to blink up to two leds
 #[embassy_executor::task(pool_size = 2)]
 async fn blink(mut led: Output<'static>, delay: u64) {
@@ -73,7 +75,10 @@ async fn main(spawner: Spawner) {
         nss.set_low();
         unwrap!(spi.blocking_transfer_in_place(&mut buf_req));
         nss.set_high();
-        info!("Request => {=[u8]:x}", buf_req);
+        let status = Status::from_slice(&buf_req);
+        if !status.is_ok() {
+            info!("Request => {=[u8]:x} =< {}", buf_req, status);
+        }
         // Wait for busy to go down before reading the response
         while busy.is_high() {}
         // Read the 4 byte response
@@ -81,7 +86,8 @@ async fn main(spawner: Spawner) {
         nss.set_low();
         unwrap!(spi.blocking_transfer_in_place(&mut buf_rsp));
         nss.set_high();
-        info!("Response =>  {=[u8]:x}", buf_rsp);
+        let status = Status::from_slice(&buf_rsp);
+        info!("Response => {=[u8]:x} => {} | Version = {:02x}.{:02x}", buf_rsp, status, buf_rsp[2], buf_rsp[3]);
         // Wait for button release
         button.wait_for_high().await;
     }
