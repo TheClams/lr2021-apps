@@ -3,7 +3,7 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_stm32::{exti::ExtiInput, gpio::{Input, Level, Output, Pull, Speed}, time::Hertz};
+use embassy_stm32::{gpio::{Input, Level, Output, Pull, Speed}, time::Hertz};
 use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
@@ -26,10 +26,7 @@ async fn blink(mut led: Output<'static>, delay: u64) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(Default::default());
-    info!("Starting get_version");
-
-    // Get an interrupt on the button pin to wait
-    let mut button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
+    info!("Starting get_temp");
 
     // Pin mapping
     // Name  | Connector | Nucleo
@@ -58,7 +55,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(blink(led_tx, 500)).unwrap();
 
     let led_rx = Output::new(p.PC0, Level::High, Speed::Low);
-    spawner.spawn(blink(led_rx, 125)).unwrap();
+    spawner.spawn(blink(led_rx, 133)).unwrap();
 
     // SPI
     let mut spi_config = Config::default();
@@ -67,11 +64,13 @@ async fn main(spawner: Spawner) {
     let mut spi = Spi::new_blocking(p.SPI1, p.PA5, p.PA7, p.PA6, spi_config);
     let mut nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
-    // Request the chip version when the button is pressed
+    // Get a temperature measurement every 15 seconds
     loop {
-        button.wait_for_low().await;
-        // Send a request with the opcode 0x101 corresponding to GetVersion
-        let mut buf_req = [0x01,0x01];
+        Timer::after_secs(15).await;
+        // Send a request with the opcode 0x125 corresponding to GetTemp
+        // One byte parameter: 5:4 = source, b3 = format, 2:0 = resolution
+        // Setting resolution to max (5 fractional bits) and format to degre Celsius
+        let mut buf_req = [0x01,0x25,5|8];
         nss.set_low();
         unwrap!(spi.blocking_transfer_in_place(&mut buf_req));
         nss.set_high();
@@ -87,9 +86,11 @@ async fn main(spawner: Spawner) {
         unwrap!(spi.blocking_transfer_in_place(&mut buf_rsp));
         nss.set_high();
         let status = Status::from_slice(&buf_rsp);
-        info!("Response => {=[u8]:x} => {} | Version = {:02x}.{:02x}", buf_rsp, status, buf_rsp[2], buf_rsp[3]);
-        // Wait for button release
-        button.wait_for_high().await;
+        if status.is_ok() {
+            info!("Temp = {}.{:02}", buf_rsp[2], (buf_rsp[3] as u16 * 100) >> 8);
+        } else {
+            error!("Request => {=[u8]:x} =< {}", buf_rsp, status);
+        }
     }
 
 }
