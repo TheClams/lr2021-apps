@@ -1,8 +1,15 @@
+use core::u32;
+
 use defmt::Format;
 
+use super::Lr2021Error;
+
 /// Status sent at the beginning of each SPI command
-/// 11:9 = Command status, 8 Interrupt pending, 7:4 Reset source, 2:0 Chip Mode
-pub struct Status(u16);
+/// B0 : 3:1 = Command status, 0 Interrupt pending
+/// B1 : 7:4 Reset source, 2:0 Chip Mode
+/// B2..B5 : Interrupts (32b)
+#[derive(Default)]
+pub struct Status([u8;6]);
 
 /// Command status
 #[derive(Format, PartialEq)]
@@ -41,18 +48,36 @@ pub enum ChipMode {
 
 impl Status {
 
-    pub fn from_slice(bytes: &[u8]) -> Self {
-        if bytes.len() < 2 {
-            return Self::default();
+    /// Create a status from up to 6 bytes
+    pub fn from_slice(bytes: &[u8]) -> Status {
+        let mut arr = [0;6];
+        if bytes.len() > 6 {
+            arr.copy_from_slice(&bytes[..6]);
+        } else {
+            arr[..bytes.len()].copy_from_slice(bytes);
         }
-        let val = unsafe {((*bytes.get_unchecked(0) as u16) << 8) | *bytes.get_unchecked(1) as u16};
-        Self(val)
+        Status(arr)
+    }
+
+    /// Update status: must be at most 6 bytes
+    pub fn updt(&mut self, bytes: &[u8]) {
+        self.0[..bytes.len()].copy_from_slice(bytes);
+    }
+
+    /// Update status: must be at most 6 bytes
+    pub fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+
+    /// Return the inner value as a slice (mostly for debug)
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 
     /// Return Command status
     pub fn cmd(&self) -> CmdStatus {
-        let b11_9 = (self.0 >> 9) & 7;
-        match b11_9 {
+        let bits_cmd = (self.0[0] >> 1) & 7;
+        match bits_cmd {
             0 => CmdStatus::Fail,
             1 => CmdStatus::PErr,
             2 => CmdStatus::Ok,
@@ -67,13 +92,13 @@ impl Status {
 
     /// Return true if an Interrupt is pending
     pub fn irq(&self) -> bool {
-        (self.0 & 0x100) != 0
+        (self.0[0] & 1) != 0
     }
 
     /// Return source of last reset
     pub fn reset_src(&self) -> ResetSrc {
-        let b7_4 = (self.0 >> 4) & 15;
-        match b7_4 {
+        let bits_rst = (self.0[1] >> 4) & 15;
+        match bits_rst {
             0 => ResetSrc::Cleared,
             1 => ResetSrc::Analog,
             2 => ResetSrc::External,
@@ -87,8 +112,8 @@ impl Status {
 
     /// Return source of last reset
     pub fn chip_mode(&self) -> ChipMode {
-        let b2_0 = self.0 & 7;
-        match b2_0 {
+        let bits_mode = self.0[1] & 7;
+        match bits_mode {
             0 => ChipMode::Sleep,
             1 => ChipMode::Rc,
             2 => ChipMode::Xosc,
@@ -99,14 +124,30 @@ impl Status {
         }
     }
 
+    /// Check command status and return Ok/Err
+    pub fn check(&self) -> Result<(), Lr2021Error> {
+        match self.cmd() {
+            CmdStatus::Unknown => Err(Lr2021Error::Unknown),
+            CmdStatus::Fail => Err(Lr2021Error::CmdFail),
+            CmdStatus::PErr => Err(Lr2021Error::CmdErr),
+            CmdStatus::Ok   |
+            CmdStatus::Data => Ok(()),
+        }
+    }
+
+    /// Return the interrupt status as u32
+    pub fn intr(&self) -> u32 {
+        let arr : [u8;4] = self.0[2..].try_into().unwrap();
+        u32::from_be_bytes(arr)
+    }
+
+    /// Check if the interrupt status
+    pub fn intr_match(&self, mask: u32) -> bool {
+        self.intr() & mask != 0
+    }
+
 }
 
-/// Default inner to 0 which correspond to a command fail
-impl Default for Status {
-    fn default() -> Self {
-        Status(0)
-    }
-}
 
 impl defmt::Format for Status {
     fn format(&self, fmt: defmt::Formatter) {
@@ -138,6 +179,7 @@ pub const IRQ_MASK_RX_TIMESTAMP        : u32 = 0x00000010;
 pub const IRQ_MASK_PREAMBLE_DETECTED   : u32 = 0x00000020;
 pub const IRQ_MASK_LORA_HEADER_VALID   : u32 = 0x00000040;
 pub const IRQ_MASK_CAD_DETECTED        : u32 = 0x00000080;
+
 pub const IRQ_MASK_LORA_HDR_TIMESTAMP  : u32 = 0x00000100;
 pub const IRQ_MASK_LORA_HEADER_ERR     : u32 = 0x00000200;
 pub const IRQ_MASK_EOL                 : u32 = 0x00000400;
@@ -146,6 +188,7 @@ pub const IRQ_MASK_LORA_TX_RX_HOP      : u32 = 0x00001000;
 pub const IRQ_MASK_SYNC_FAIL           : u32 = 0x00002000;
 pub const IRQ_MASK_LORA_SYMBOL_END     : u32 = 0x00004000;
 pub const IRQ_MASK_LORA_TIMESTAMP_STAT : u32 = 0x00008000;
+
 pub const IRQ_MASK_ERROR               : u32 = 0x00010000;
 pub const IRQ_MASK_CMD                 : u32 = 0x00020000;
 pub const IRQ_MASK_RX_DONE             : u32 = 0x00040000;
@@ -154,6 +197,7 @@ pub const IRQ_MASK_CAD_DONE            : u32 = 0x00100000;
 pub const IRQ_MASK_TIMEOUT             : u32 = 0x00200000;
 pub const IRQ_MASK_CRC_ERROR           : u32 = 0x00400000;
 pub const IRQ_MASK_LEN_ERROR           : u32 = 0x00800000;
+
 pub const IRQ_MASK_ADDR_ERROR          : u32 = 0x01000000;
 pub const IRQ_MASK_FHSS                : u32 = 0x02000000;
 pub const IRQ_MASK_INTER_PACKET1       : u32 = 0x04000000;
