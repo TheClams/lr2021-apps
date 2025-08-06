@@ -8,7 +8,7 @@ use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
-use lr2021_apps::lr2021::Lr2021;
+use lr2021_apps::lr2021::{cmd_sys::{self, TempResolution, TempSource}, Lr2021};
 
 /// Task to blink up to two leds
 #[embassy_executor::task(pool_size = 2)]
@@ -26,7 +26,7 @@ async fn blink(mut led: Output<'static>, delay: u64) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(Default::default());
-    info!("Starting get_temp");
+    info!("Starting get_temp (v2)");
 
     // Pin mapping
     // Name  | Connector | Nucleo
@@ -64,21 +64,19 @@ async fn main(spawner: Spawner) {
     lr2021.reset().await;
 
     // Check version
-    let mut buf_rsp = [0x00;4];
-    match lr2021.cmd_rd(&[0x01,0x01], &mut buf_rsp).await {
-        Ok(_) => info!("FW Version {:02x}.{:02x}", buf_rsp[2], buf_rsp[3]),
+    let mut fw_version = cmd_sys::GetVersionRsp::new();
+    match lr2021.cmd_rd(&cmd_sys::get_version_req(), fw_version.as_mut()).await {
+        Ok(_) => info!("FW Version {:02x}.{:02x}", fw_version.major(), fw_version.minor()),
         Err(e) => error!("{}", e),
     }
-    // Send a request with the opcode 0x125 corresponding to GetTemp
-    // One byte parameter: 5:4 = source, b3 = format, 2:0 = resolution
-    // Setting resolution to max (5 fractional bits) and format to degre Celsius
-    let cmd = [0x01,0x25,5|8];
+    // Create the GetTemp command once
+    let cmd = cmd_sys::get_temp_req(TempSource::Vbe, TempResolution::Res13b);
     // Get a temperature measurement every 15 seconds
     loop {
         Timer::after_secs(15).await;
-        let mut buf_rsp = [0x00;4];
-        match lr2021.cmd_rd(&cmd, &mut buf_rsp).await {
-            Ok(_) => info!("Temp = {}.{:02}", buf_rsp[2], (buf_rsp[3] as u16 * 100) >> 8),
+        let mut temp = cmd_sys::GetTempRsp::new();
+        match lr2021.cmd_rd(&cmd, temp.as_mut()).await {
+            Ok(_) => info!("Temp = {}", temp),
             Err(e) => error!("{}", e),
         }
     }

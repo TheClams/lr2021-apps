@@ -1,5 +1,3 @@
-use core::u32;
-
 use defmt::Format;
 
 use super::Lr2021Error;
@@ -62,11 +60,6 @@ impl Status {
     /// Update status: must be at most 6 bytes
     pub fn updt(&mut self, bytes: &[u8]) {
         self.0[..bytes.len()].copy_from_slice(bytes);
-    }
-
-    /// Update status: must be at most 6 bytes
-    pub fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.0
     }
 
     /// Return the inner value as a slice (mostly for debug)
@@ -148,6 +141,11 @@ impl Status {
 
 }
 
+impl AsMut<[u8]> for Status {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
 
 impl defmt::Format for Status {
     fn format(&self, fmt: defmt::Formatter) {

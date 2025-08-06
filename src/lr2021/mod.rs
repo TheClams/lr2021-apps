@@ -5,10 +5,11 @@ use embassy_stm32::{
     mode::Blocking,
     spi::Spi,
 };
-use embassy_time::Timer;
+use embassy_time::{Duration, Instant, Timer};
 use status::Status;
 
 pub mod status;
+pub mod cmd_sys;
 
 /// LR2021 Device
 pub struct Lr2021 {
@@ -31,6 +32,8 @@ pub enum Lr2021Error {
     CmdFail,
     /// Last command was invalid
     CmdErr,
+    /// Timeout while waiting for busy
+    BusyTimeout,
     /// Unknown error
     Unknown,
 }
@@ -92,7 +95,7 @@ impl Lr2021 {
         self.cmd_wr(req).await?;
         // Wait for busy to go down before reading the response
         // TODO: add a timeout to avoid deadlock
-        while self.busy.is_high() {}
+        self.wait_ready(Duration::from_micros(250))?;
         self.nss.set_low();
         self.spi
             .blocking_transfer_in_place(rsp)
@@ -103,6 +106,17 @@ impl Lr2021 {
             error!("Response => {=[u8]:x} =< {}", self.status.as_bytes(), self.status);
         }
         self.status.check()
+    }
+
+    /// Wait for busy to go low with timeout
+    pub fn wait_ready(&self, timeout: Duration) -> Result<(), Lr2021Error> {
+        let start = Instant::now();
+        while self.busy.is_high() {
+            if start.elapsed() >= timeout {
+                return Err(Lr2021Error::BusyTimeout);
+            }
+        }
+        Ok(())
     }
 
     /// Wait for an interrupt
