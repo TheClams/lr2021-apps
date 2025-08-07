@@ -3,11 +3,12 @@ use defmt::Format;
 use super::Lr2021Error;
 
 /// Status sent at the beginning of each SPI command
-/// B0 : 3:1 = Command status, 0 Interrupt pending
-/// B1 : 7:4 Reset source, 2:0 Chip Mode
-/// B2..B5 : Interrupts (32b)
+///  - 11:9 = Command status
+///  -    8 Interrupt pending
+///  -  7:4 Reset source
+///  -  2:0 Chip Mode
 #[derive(Default)]
-pub struct Status([u8;6]);
+pub struct Status(u16);
 
 /// Command status
 #[derive(Format, PartialEq)]
@@ -46,30 +47,16 @@ pub enum ChipMode {
 
 impl Status {
 
-    /// Create a status from up to 6 bytes
+    /// Create a status from a slice of at least two elements
     pub fn from_slice(bytes: &[u8]) -> Status {
-        let mut arr = [0;6];
-        if bytes.len() > 6 {
-            arr.copy_from_slice(&bytes[..6]);
-        } else {
-            arr[..bytes.len()].copy_from_slice(bytes);
-        }
-        Status(arr)
-    }
-
-    /// Update status: must be at most 6 bytes
-    pub fn updt(&mut self, bytes: &[u8]) {
-        self.0[..bytes.len()].copy_from_slice(bytes);
-    }
-
-    /// Return the inner value as a slice (mostly for debug)
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        let v = ((*bytes.get(0).unwrap_or(&0) as u16) << 8)
+            | (*bytes.get(1).unwrap_or(&0) as u16);
+        Status(v)
     }
 
     /// Return Command status
     pub fn cmd(&self) -> CmdStatus {
-        let bits_cmd = (self.0[0] >> 1) & 7;
+        let bits_cmd = (self.0 >> 9) & 7;
         match bits_cmd {
             0 => CmdStatus::Fail,
             1 => CmdStatus::PErr,
@@ -85,12 +72,12 @@ impl Status {
 
     /// Return true if an Interrupt is pending
     pub fn irq(&self) -> bool {
-        (self.0[0] & 1) != 0
+        (self.0 & 0x0100) != 0
     }
 
     /// Return source of last reset
     pub fn reset_src(&self) -> ResetSrc {
-        let bits_rst = (self.0[1] >> 4) & 15;
+        let bits_rst = (self.0 >> 4) & 15;
         match bits_rst {
             0 => ResetSrc::Cleared,
             1 => ResetSrc::Analog,
@@ -105,7 +92,7 @@ impl Status {
 
     /// Return source of last reset
     pub fn chip_mode(&self) -> ChipMode {
-        let bits_mode = self.0[1] & 7;
+        let bits_mode = self.0 & 7;
         match bits_mode {
             0 => ChipMode::Sleep,
             1 => ChipMode::Rc,
@@ -128,23 +115,6 @@ impl Status {
         }
     }
 
-    /// Return the interrupt status as u32
-    pub fn intr(&self) -> u32 {
-        let arr : [u8;4] = self.0[2..].try_into().unwrap();
-        u32::from_be_bytes(arr)
-    }
-
-    /// Check if the interrupt status
-    pub fn intr_match(&self, mask: u32) -> bool {
-        self.intr() & mask != 0
-    }
-
-}
-
-impl AsMut<[u8]> for Status {
-    fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
 }
 
 impl defmt::Format for Status {
@@ -204,3 +174,127 @@ pub const IRQ_MASK_RNG_RESP_DONE       : u32 = 0x10000000;
 pub const IRQ_MASK_RNG_REQ_DIS         : u32 = 0x20000000;
 pub const IRQ_MASK_RNG_EXCH_VLD        : u32 = 0x40000000;
 pub const IRQ_MASK_RNG_TIMEOUT         : u32 = 0x80000000;
+
+#[derive(Default)]
+pub struct Intr(u32);
+
+impl Intr {
+    /// Create Interrupt status from a slice
+    /// Handle gracefully case where slice is smaller than interrupt size
+    /// (this happen)
+    pub fn from_slice(bytes: &[u8]) -> Intr {
+        let v = ((*bytes.get(0).unwrap_or(&0) as u32) << 24)
+            | ((*bytes.get(1).unwrap_or(&0) as u32) << 16)
+            | ((*bytes.get(2).unwrap_or(&0) as u32) <<  8)
+            | (*bytes.get(3).unwrap_or(&0) as u32);
+        Intr(v)
+    }
+
+    /// Return the interrupt status as u32
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+
+    /// Check if the interrupt status
+    pub fn intr_match(&self, mask: u32) -> bool {
+        self.value() & mask != 0
+    }
+
+    pub fn rx_fifo(&self) -> bool {
+        (self.0 & IRQ_MASK_RX_FIFO) != 0
+    }
+    pub fn tx_fifo(&self) -> bool {
+        (self.0 & IRQ_MASK_TX_FIFO) != 0
+    }
+    pub fn rng_req_vld(&self) -> bool {
+        (self.0 & IRQ_MASK_RNG_REQ_VLD) != 0
+    }
+    pub fn tx_timestamp(&self) -> bool {
+        (self.0 & IRQ_MASK_TX_TIMESTAMP) != 0
+    }
+    pub fn rx_timestamp(&self) -> bool {
+        (self.0 & IRQ_MASK_RX_TIMESTAMP) != 0
+    }
+    pub fn preamble_detected(&self) -> bool {
+        (self.0 & IRQ_MASK_PREAMBLE_DETECTED) != 0
+    }
+    pub fn lora_header_valid(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_HEADER_VALID) != 0
+    }
+    pub fn cad_detected(&self) -> bool {
+        (self.0 & IRQ_MASK_CAD_DETECTED) != 0
+    }
+    pub fn lora_hdr_timestamp(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_HDR_TIMESTAMP) != 0
+    }
+    pub fn lora_header_err(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_HEADER_ERR) != 0
+    }
+    pub fn eol(&self) -> bool {
+        (self.0 & IRQ_MASK_EOL) != 0
+    }
+    pub fn pa(&self) -> bool {
+        (self.0 & IRQ_MASK_PA) != 0
+    }
+    pub fn lora_tx_rx_hop(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_TX_RX_HOP) != 0
+    }
+    pub fn sync_fail(&self) -> bool {
+        (self.0 & IRQ_MASK_SYNC_FAIL) != 0
+    }
+    pub fn lora_symbol_end(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_SYMBOL_END) != 0
+    }
+    pub fn lora_timestamp_stat(&self) -> bool {
+        (self.0 & IRQ_MASK_LORA_TIMESTAMP_STAT) != 0
+    }
+    pub fn error(&self) -> bool {
+        (self.0 & IRQ_MASK_ERROR) != 0
+    }
+    pub fn cmd(&self) -> bool {
+        (self.0 & IRQ_MASK_CMD) != 0
+    }
+    pub fn rx_done(&self) -> bool {
+        (self.0 & IRQ_MASK_RX_DONE) != 0
+    }
+    pub fn tx_done(&self) -> bool {
+        (self.0 & IRQ_MASK_TX_DONE) != 0
+    }
+    pub fn cad_done(&self) -> bool {
+        (self.0 & IRQ_MASK_CAD_DONE) != 0
+    }
+    pub fn timeout(&self) -> bool {
+        (self.0 & IRQ_MASK_TIMEOUT) != 0
+    }
+    pub fn crc_error(&self) -> bool {
+        (self.0 & IRQ_MASK_CRC_ERROR) != 0
+    }
+    pub fn len_error(&self) -> bool {
+        (self.0 & IRQ_MASK_LEN_ERROR) != 0
+    }
+    pub fn addr_error(&self) -> bool {
+        (self.0 & IRQ_MASK_ADDR_ERROR) != 0
+    }
+    pub fn fhss(&self) -> bool {
+        (self.0 & IRQ_MASK_FHSS) != 0
+    }
+    pub fn inter_packet1(&self) -> bool {
+        (self.0 & IRQ_MASK_INTER_PACKET1) != 0
+    }
+    pub fn inter_packet2(&self) -> bool {
+        (self.0 & IRQ_MASK_INTER_PACKET2) != 0
+    }
+    pub fn rng_resp_done(&self) -> bool {
+        (self.0 & IRQ_MASK_RNG_RESP_DONE) != 0
+    }
+    pub fn rng_req_dis(&self) -> bool {
+        (self.0 & IRQ_MASK_RNG_REQ_DIS) != 0
+    }
+    pub fn rng_exch_vld(&self) -> bool {
+        (self.0 & IRQ_MASK_RNG_EXCH_VLD) != 0
+    }
+    pub fn rng_timeout(&self) -> bool {
+        (self.0 & IRQ_MASK_RNG_TIMEOUT) != 0
+    }
+
+}

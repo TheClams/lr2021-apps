@@ -1,31 +1,31 @@
 use defmt::{debug, error, Format};
-use embassy_stm32::{
-    exti::ExtiInput,
-    gpio::{Input, Output},
-    mode::Blocking,
-    spi::Spi,
-};
 use embassy_time::{Duration, Instant, Timer};
-use status::Status;
+use embedded_hal::digital::v2::{OutputPin, InputPin};
+use embedded_hal_async::{digital::Wait, spi::SpiBus};
+use status::{Intr, Status};
 
 pub mod status;
 pub mod cmd_sys;
 
 /// LR2021 Device
-pub struct Lr2021 {
+pub struct Lr2021<I,O,IRQ,SPI> {
     // Pins
-    nreset: Output<'static>,
-    busy: Input<'static>,
-    irq: ExtiInput<'static>,
-    spi: Spi<'static, Blocking>,
-    nss: Output<'static>,
-    /// Last chip status
-    status: Status,
+    nreset: O,
+    busy: I,
+    irq: IRQ,
+    spi: SPI,
+    nss: O,
+    /// Buffer to store SPI bytes from LR2021 when writing commands
+    /// Size is set to largest command
+    /// Could be re-purposed if needed, TBD
+    buffer: [u8;18],
 }
 
 /// Error using the LR2021
-#[derive(Format)]
+#[derive(Format, Debug)]
 pub enum Lr2021Error {
+    /// Unable to Set/Get a pin level
+    Pin,
     /// Unable to use SPI
     Spi,
     /// Last command failed
@@ -34,18 +34,22 @@ pub enum Lr2021Error {
     CmdErr,
     /// Timeout while waiting for busy
     BusyTimeout,
+    /// Command with invalid size (>18B)
+    InvalidSize,
     /// Unknown error
     Unknown,
 }
 
-impl Lr2021 {
+impl<I,O,IRQ,SPI> Lr2021<I,O,IRQ,SPI> where
+    I: InputPin, O: OutputPin, IRQ: InputPin + Wait, SPI: SpiBus<u8>
+{
     /// Create a LR2021 Device
     pub fn new(
-        nreset: Output<'static>,
-        busy: Input<'static>,
-        irq: ExtiInput<'static>,
-        spi: Spi<'static, Blocking>,
-        nss: Output<'static>,
+        nreset: O,
+        busy: I,
+        irq: IRQ,
+        spi: SPI,
+        nss: O,
     ) -> Self {
         Self {
             nreset,
@@ -53,40 +57,52 @@ impl Lr2021 {
             irq,
             spi,
             nss,
-            status: Status::default(),
+            buffer: [0;18],
         }
     }
 
     /// Reset the chip
-    pub async fn reset(&mut self) {
-        self.nreset.set_low();
+    pub async fn reset(&mut self) -> Result<(), Lr2021Error> {
+        self.nreset.set_low().map_err(|_| Lr2021Error::Pin)?;
         Timer::after_millis(10).await;
-        self.nreset.set_high();
+        self.nreset.set_high().map_err(|_| Lr2021Error::Pin)?;
         Timer::after_millis(10).await;
-        debug!("Reset done : busy = {}", self.busy.is_high());
+        debug!("Reset done");
+        Ok(())
     }
 
     /// Check if the busy pin is high (debug)
     pub fn is_busy(&self) -> bool {
-        self.busy.is_high()
+        self.busy.is_high().unwrap_or(false)
     }
 
     /// Last status (command status, chip mode, interrupt, ...)
-    pub fn status(&self) -> &Status {
-        &self.status
+    pub fn status(&self) -> Status {
+        Status::from_slice(&self.buffer[..2])
+    }
+
+    /// Last captured interrupt status
+    /// Note: might be incomplete if last command was less than 6 bytes
+    pub fn last_intr(&self) -> Intr {
+        Intr::from_slice(&self.buffer[2..6])
     }
 
     /// Write a command
     pub async fn cmd_wr(&mut self, req: &[u8]) -> Result<(), Lr2021Error> {
-        self.nss.set_low();
-        self.spi
-            .blocking_transfer(self.status.as_mut(), req)
-            .map_err(|_| Lr2021Error::Spi)?;
-        self.nss.set_high();
-        if !self.status.is_ok() {
-            error!("Request failed: => {=[u8]:x} =< {}", self.status.as_bytes(), self.status);
+        if req.len() > 18 {
+            return Err(Lr2021Error::InvalidSize);
         }
-        self.status.check()
+        let rsp_buf = &mut self.buffer[..req.len()];
+        self.nss.set_low().map_err(|_| Lr2021Error::Pin)?;
+        self.spi
+            .transfer(rsp_buf, req).await
+            .map_err(|_| Lr2021Error::Spi)?;
+        self.nss.set_high().map_err(|_| Lr2021Error::Pin)?;
+        let status = self.status();
+        if !status.is_ok() {
+            error!("Request failed: => {=[u8]:x} =< {}", self.buffer[..req.len()], status);
+        }
+        status.check()
     }
 
     /// Write a command and read response
@@ -94,24 +110,27 @@ impl Lr2021 {
     pub async fn cmd_rd(&mut self, req: &[u8], rsp: &mut [u8]) -> Result<(), Lr2021Error> {
         self.cmd_wr(req).await?;
         // Wait for busy to go down before reading the response
-        // TODO: add a timeout to avoid deadlock
-        self.wait_ready(Duration::from_micros(250))?;
-        self.nss.set_low();
+        // Some command can have large delay: temperature measurement with highest resolution (13b) takes more than 270us
+        self.wait_ready(Duration::from_millis(1))?;
+        // Read response by transfering a buffer full of 0 and replacing it by the read bytes
+        self.nss.set_low().map_err(|_| Lr2021Error::Pin)?;
         self.spi
-            .blocking_transfer_in_place(rsp)
+            .transfer_in_place(rsp).await
             .map_err(|_| Lr2021Error::Spi)?;
-        self.nss.set_high();
-        self.status.updt(&rsp[..2]);
-        if !self.status.is_ok() {
-            error!("Response => {=[u8]:x} =< {}", self.status.as_bytes(), self.status);
+        self.nss.set_high().map_err(|_| Lr2021Error::Pin)?;
+        // Save the first 2 byte in case we want to access status information
+        self.buffer[..2].copy_from_slice(&rsp[..2]);
+        let status = self.status();
+        if !status.is_ok() {
+            error!("Response => {=[u8]:x} =< {}", rsp, status);
         }
-        self.status.check()
+        status.check()
     }
 
     /// Wait for busy to go low with timeout
     pub fn wait_ready(&self, timeout: Duration) -> Result<(), Lr2021Error> {
         let start = Instant::now();
-        while self.busy.is_high() {
+        while self.busy.is_high().map_err(|_| Lr2021Error::Pin)? {
             if start.elapsed() >= timeout {
                 return Err(Lr2021Error::BusyTimeout);
             }
@@ -120,9 +139,27 @@ impl Lr2021 {
     }
 
     /// Wait for an interrupt
-    pub async fn wait_irq(&mut self) {
-        if !self.irq.is_high() {
-            self.irq.wait_for_rising_edge().await;
+    pub async fn wait_irq(&mut self) -> Result<(), Lr2021Error> {
+        if !self.irq.is_high().map_err(|_| Lr2021Error::Pin)? {
+            self.irq.wait_for_rising_edge().await
+                .map_err(|_| Lr2021Error::Pin)?;
         }
+        Ok(())
+    }
+
+    /// Read status and interrupt from the chip
+    pub async fn get_status(&mut self) -> Result<(Status,Intr), Lr2021Error> {
+        let req = cmd_sys::get_status_req();
+        let mut rsp = cmd_sys::GetStatusRsp::new();
+        self.cmd_rd(&req, rsp.as_mut()).await?;
+        Ok((rsp.status(), rsp.intr()))
+    }
+
+    /// Read interrupt from the chip and clear them all
+    pub async fn get_and_clear_irq(&mut self) -> Result<Intr, Lr2021Error> {
+        let req = cmd_sys::get_and_clear_irq_req();
+        let mut rsp = cmd_sys::GetStatusRsp::new();
+        self.cmd_rd(&req, rsp.as_mut()).await?;
+        Ok(rsp.intr())
     }
 }

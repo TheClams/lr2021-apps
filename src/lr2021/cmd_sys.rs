@@ -1,4 +1,45 @@
-/// Create the ClearErrors command
+use super::status::{Intr, Status};
+
+/// Create the GetStatus command
+pub fn get_status_req() -> [u8; 2] {
+    [0x01, 0x00]
+}
+
+/// Create the GetAndClearIrqStatus command
+pub fn get_and_clear_irq_req() -> [u8; 2] {
+    [0x01, 0x17]
+}
+
+/// Response part of the GetStatus command
+#[derive(Default)]
+pub struct GetStatusRsp([u8; 6]);
+
+impl GetStatusRsp {
+
+    /// Create a buffer for response
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// Return Interrupt
+    pub fn intr(&self) -> Intr {
+        Intr::from_slice(&self.0[2..6])
+    }
+
+}
+
+impl AsMut<[u8]> for GetStatusRsp {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Create the GetVersion command
 pub fn get_version_req() -> [u8; 2] {
     [0x01, 0x01]
 }
@@ -14,9 +55,9 @@ impl GetVersionRsp {
         Self::default()
     }
 
-    /// Return the two status byte
-    pub fn stat(&mut self) -> &[u8] {
-        &self.0[..2]
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
     }
 
     /// Return major version
@@ -77,9 +118,9 @@ impl GetTempRsp {
         Self::default()
     }
 
-    /// Return the two status byte
-    pub fn stat(&mut self) -> &[u8] {
-        &self.0[..2]
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
     }
 
     /// Temperature in s13.5

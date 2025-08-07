@@ -26,7 +26,7 @@ async fn blink(mut led: Output<'static>, delay: u64) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(Default::default());
-    info!("Starting get_temp (v2)");
+    info!("Starting get_temp (v3)");
 
     // Pin mapping
     // Name  | Connector | Nucleo
@@ -57,11 +57,12 @@ async fn main(spawner: Spawner) {
     // SPI
     let mut spi_config = Config::default();
     spi_config.frequency = Hertz(4_000_000);
-    let spi = Spi::new_blocking(p.SPI1, p.PA5, p.PA7, p.PA6, spi_config);
+    let spi = Spi::new(p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config);
     let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
     let mut lr2021 = Lr2021::new(nreset, busy, irq, spi, nss);
-    lr2021.reset().await;
+    lr2021.reset().await
+        .unwrap_or_else(|_| error!("Unable to reset chip !"));
 
     // Check version
     let mut fw_version = cmd_sys::GetVersionRsp::new();
@@ -69,8 +70,16 @@ async fn main(spawner: Spawner) {
         Ok(_) => info!("FW Version {:02x}.{:02x}", fw_version.major(), fw_version.minor()),
         Err(e) => error!("{}", e),
     }
+
+    // Report status
+    match lr2021.get_status().await {
+        Ok((status,intr)) => info!("{} | Intr={:08x}", status, intr.value()),
+        Err(e) => error!("{}", e),
+    }
+
     // Create the GetTemp command once
     let cmd = cmd_sys::get_temp_req(TempSource::Vbe, TempResolution::Res13b);
+
     // Get a temperature measurement every 15 seconds
     loop {
         Timer::after_secs(15).await;
