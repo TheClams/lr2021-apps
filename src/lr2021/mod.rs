@@ -23,7 +23,10 @@ pub use cmd::cmd_system;
 pub use cmd::cmd_wisun;
 pub use cmd::cmd_zigbee;
 pub use cmd::cmd_zwave;
-pub use cmd::RxBw; // Re-export Bandwidth enum as it is used for all packet types
+pub use cmd::RxBw;
+
+use self::cmd_common::PacketType;
+use self::cmd_common::RxPath; // Re-export Bandwidth enum as it is used for all packet types
 
 /// LR2021 Device
 pub struct Lr2021<I,O,IRQ,SPI> {
@@ -188,5 +191,45 @@ impl<I,O,IRQ,SPI> Lr2021<I,O,IRQ,SPI> where
         let mut rsp = cmd_system::GetStatusRsp::new();
         self.cmd_rd(&req, rsp.as_mut()).await?;
         Ok(rsp.intr())
+    }
+
+    /// Set the RF channel (in Hz)
+    pub async fn set_rf(&mut self, freq: u32) -> Result<(), Lr2021Error> {
+        let req = cmd_common::set_rf_frequency_cmd(freq);
+        self.cmd_wr(&req).await?;
+        Ok(())
+    }
+
+    /// Set the RX Path (LF/HF)
+    pub async fn set_rx_path(&mut self, rx_path: RxPath, rx_boost: u8) -> Result<(), Lr2021Error> {
+        let req = cmd_common::set_rx_path_adv_cmd(rx_path, rx_boost);
+        self.cmd_wr(&req).await?;
+        Ok(())
+    }
+
+    /// Run calibration on up to 3 frequencies on 16b (MSB encode RX Path)
+    /// If none, use current frequency
+    pub async fn calib_fe(&mut self, freqs_4m: &[u16]) -> Result<(), Lr2021Error> {
+        let f0 = freqs_4m.first().map(|&f| f).unwrap_or(0);
+        let f1 = freqs_4m.get(1).map(|&f| f).unwrap_or(0);
+        let f2 = freqs_4m.get(2).map(|&f| f).unwrap_or(0);
+        let req = cmd_system::calib_fe_cmd(f0,f1,f2);
+        let len = 2 + 2*freqs_4m.len();
+        self.cmd_wr(&req[..len]).await?;
+        Ok(())
+    }
+
+    /// Set the packet type
+    pub async fn set_packet_type(&mut self, packet_type: PacketType) -> Result<(), Lr2021Error> {
+        let req = cmd_common::set_packet_type_cmd(packet_type);
+        self.cmd_wr(&req).await?;
+        Ok(())
+    }
+
+    /// Set the packet type
+    pub async fn set_lora_modulation(&mut self, packet_type: PacketType) -> Result<(), Lr2021Error> {
+        let req = setlora;
+        self.cmd_wr(&req).await?;
+        Ok(())
     }
 }
