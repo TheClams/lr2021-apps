@@ -5,7 +5,25 @@ use embedded_hal_async::{digital::Wait, spi::SpiBus};
 use status::{Intr, Status};
 
 pub mod status;
-pub mod cmd_sys;
+
+// Re-export all cmd_
+mod cmd;
+pub use cmd::cmd_ble;
+pub use cmd::cmd_bpsk;
+pub use cmd::cmd_common;
+pub use cmd::cmd_flrc;
+pub use cmd::cmd_fsk;
+pub use cmd::cmd_lora;
+pub use cmd::cmd_lrfhss;
+pub use cmd::cmd_ook;
+pub use cmd::cmd_ranging;
+pub use cmd::cmd_raw;
+pub use cmd::cmd_regmem;
+pub use cmd::cmd_system;
+pub use cmd::cmd_wisun;
+pub use cmd::cmd_zigbee;
+pub use cmd::cmd_zwave;
+pub use cmd::RxBw; // Re-export Bandwidth enum as it is used for all packet types
 
 /// LR2021 Device
 pub struct Lr2021<I,O,IRQ,SPI> {
@@ -111,7 +129,7 @@ impl<I,O,IRQ,SPI> Lr2021<I,O,IRQ,SPI> where
         self.cmd_wr(req).await?;
         // Wait for busy to go down before reading the response
         // Some command can have large delay: temperature measurement with highest resolution (13b) takes more than 270us
-        self.wait_ready(Duration::from_millis(1))?;
+        self.wait_ready(Duration::from_millis(1)).await?;
         // Read response by transfering a buffer full of 0 and replacing it by the read bytes
         self.nss.set_low().map_err(|_| Lr2021Error::Pin)?;
         self.spi
@@ -128,12 +146,13 @@ impl<I,O,IRQ,SPI> Lr2021<I,O,IRQ,SPI> where
     }
 
     /// Wait for busy to go low with timeout
-    pub fn wait_ready(&self, timeout: Duration) -> Result<(), Lr2021Error> {
+    pub async fn wait_ready(&self, timeout: Duration) -> Result<(), Lr2021Error> {
         let start = Instant::now();
         while self.busy.is_high().map_err(|_| Lr2021Error::Pin)? {
             if start.elapsed() >= timeout {
                 return Err(Lr2021Error::BusyTimeout);
             }
+            Timer::after_micros(5).await;
         }
         Ok(())
     }
@@ -149,16 +168,24 @@ impl<I,O,IRQ,SPI> Lr2021<I,O,IRQ,SPI> where
 
     /// Read status and interrupt from the chip
     pub async fn get_status(&mut self) -> Result<(Status,Intr), Lr2021Error> {
-        let req = cmd_sys::get_status_req();
-        let mut rsp = cmd_sys::GetStatusRsp::new();
+        let req = cmd_system::get_status_req();
+        let mut rsp = cmd_system::GetStatusRsp::new();
         self.cmd_rd(&req, rsp.as_mut()).await?;
         Ok((rsp.status(), rsp.intr()))
     }
 
+    /// Read status and interrupt from the chip
+    pub async fn get_version(&mut self) -> Result<cmd_system::GetVersionRsp, Lr2021Error> {
+        let req = cmd_system::get_version_req();
+        let mut rsp = cmd_system::GetVersionRsp::new();
+        self.cmd_rd(&req, rsp.as_mut()).await?;
+        Ok(rsp)
+    }
+
     /// Read interrupt from the chip and clear them all
     pub async fn get_and_clear_irq(&mut self) -> Result<Intr, Lr2021Error> {
-        let req = cmd_sys::get_and_clear_irq_req();
-        let mut rsp = cmd_sys::GetStatusRsp::new();
+        let req = cmd_system::get_and_clear_irq_req();
+        let mut rsp = cmd_system::GetStatusRsp::new();
         self.cmd_rd(&req, rsp.as_mut()).await?;
         Ok(rsp.intr())
     }

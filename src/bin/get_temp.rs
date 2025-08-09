@@ -8,7 +8,7 @@ use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
-use lr2021_apps::lr2021::{cmd_sys::{self, TempResolution, TempSource}, Lr2021};
+use lr2021_apps::lr2021::{cmd_system::{self, AdcRes, TempSrc}, Lr2021};
 
 /// Task to blink up to two leds
 #[embassy_executor::task(pool_size = 2)]
@@ -65,8 +65,8 @@ async fn main(spawner: Spawner) {
         .unwrap_or_else(|_| error!("Unable to reset chip !"));
 
     // Check version
-    let mut fw_version = cmd_sys::GetVersionRsp::new();
-    match lr2021.cmd_rd(&cmd_sys::get_version_req(), fw_version.as_mut()).await {
+    let mut fw_version = cmd_system::GetVersionRsp::new();
+    match lr2021.cmd_rd(&cmd_system::get_version_req(), fw_version.as_mut()).await {
         Ok(_) => info!("FW Version {:02x}.{:02x}", fw_version.major(), fw_version.minor()),
         Err(e) => error!("{}", e),
     }
@@ -78,12 +78,12 @@ async fn main(spawner: Spawner) {
     }
 
     // Create the GetTemp command once
-    let cmd = cmd_sys::get_temp_req(TempSource::Vbe, TempResolution::Res13b);
+    let cmd = cmd_system::get_temp_req(TempSrc::Vbe, AdcRes::Res13bit);
 
     // Get a temperature measurement every 15 seconds
     loop {
         Timer::after_secs(15).await;
-        let mut temp = cmd_sys::GetTempRsp::new();
+        let mut temp = cmd_system::GetTempRsp::new();
         match lr2021.cmd_rd(&cmd, temp.as_mut()).await {
             Ok(_) => info!("Temp = {}", temp),
             Err(e) => error!("{}", e),
