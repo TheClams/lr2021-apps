@@ -17,7 +17,7 @@ pub enum Sf {
 
 /// Bandwidth selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Bw {
+pub enum LoraBw {
     Bw7 = 0,
     Bw15 = 1,
     Bw31 = 2,
@@ -38,17 +38,17 @@ pub enum Bw {
 
 /// Coding rate
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Cr {
+pub enum LoraCr {
     NoCoding = 0,
-    ParitySi = 1,
-    Ham2p3Si = 2,
-    Ham7p5Si = 3,
-    Ham1p2Si = 4,
-    ParityLi = 5,
-    Ham2p3Li = 6,
-    Ham1p2Li = 7,
-    Cc2p3 = 8,
-    Cc1p2 = 9,
+    Cr1Ham45Si = 1,
+    Cr2Ham23Si = 2,
+    Cr3Ham75Si = 3,
+    Cr4Ham12Si = 4,
+    Cr5Ham45Li = 5,
+    Cr6Ham23Li = 6,
+    Cr7Ham12Li = 7,
+    Cr8Cc23 = 8,
+    Cr9Cc12 = 9,
 }
 
 /// Low Data Rate Optimisation. Enable for high Spreading factor to increase tolerance to clock drift.
@@ -63,13 +63,6 @@ pub enum Ldro {
 pub enum HeaderType {
     Explicit = 0,
     Implicit = 1,
-}
-
-/// CRC enable
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Crc {
-    CrcOff = 0,
-    CrcOn = 1,
 }
 
 /// Format selection for symbols parameter
@@ -96,29 +89,29 @@ pub enum Function {
 }
 
 /// Sets the LoRa modulation parameters. FW configures respective modem registers. Will return CMD_FAIL in the status of the next command, if the packet type is not LoRa
-pub fn set_lora_modulation_params_cmd(sf: Sf, bw: Bw, cr: Cr, ldro: Ldro) -> [u8; 6] {
+pub fn set_lora_modulation_params_cmd(sf: Sf, lora_bw: LoraBw, lora_cr: LoraCr, ldro: Ldro) -> [u8; 6] {
     let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x20;
 
     cmd[2] |= ((sf as u8) & 0xF) << 4;
-    cmd[2] |= (bw as u8) & 0xF;
-    cmd[3] |= ((cr as u8) & 0xF) << 4;
+    cmd[2] |= (lora_bw as u8) & 0xF;
+    cmd[3] |= ((lora_cr as u8) & 0xF) << 4;
     cmd[3] |= (ldro as u8) & 0x3;
     cmd
 }
 
 /// Sets the packet parameters for the LoRa packets. FW configures according modem registers
-pub fn set_lora_packet_params_cmd(pbl_len: u16, payload_len: u8, header_type: HeaderType, crc: Crc, invert_iq: bool) -> [u8; 8] {
+pub fn set_lora_packet_params_cmd(pbl_len: u16, payload_len: u8, header_type: HeaderType, crc_en: bool, invert_iq: bool) -> [u8; 8] {
     let mut cmd = [0u8; 8];
     cmd[0] = 0x02;
     cmd[1] = 0x21;
 
-    cmd[2] |= (pbl_len & 0xFF) as u8;
-    cmd[3] |= ((pbl_len >> 8) & 0xFF) as u8;
+    cmd[2] |= ((pbl_len >> 8) & 0xFF) as u8;
+    cmd[3] |= (pbl_len & 0xFF) as u8;
     cmd[4] |= payload_len;
     cmd[5] |= ((header_type as u8) & 0x1) << 2;
-    cmd[5] |= ((crc as u8) & 0x1) << 1;
+    if crc_en { cmd[5] |= 2; }
     if invert_iq { cmd[5] |= 1; }
     cmd
 }
@@ -192,11 +185,11 @@ pub fn config_lora_preamble_modulation_cmd(pmod_en: bool, dram_ret: u8, wakeup_t
 
     if pmod_en { cmd[2] |= 128; }
     cmd[2] |= dram_ret & 0x7;
-    cmd[3] |= (wakeup_time & 0xFF) as u8;
-    cmd[4] |= ((wakeup_time >> 8) & 0xFF) as u8;
-    cmd[5] |= (min_sleep_time & 0xFF) as u8;
+    cmd[3] |= ((wakeup_time >> 8) & 0xFF) as u8;
+    cmd[4] |= (wakeup_time & 0xFF) as u8;
+    cmd[5] |= ((min_sleep_time >> 16) & 0xFF) as u8;
     cmd[6] |= ((min_sleep_time >> 8) & 0xFF) as u8;
-    cmd[7] |= ((min_sleep_time >> 16) & 0xFF) as u8;
+    cmd[7] |= (min_sleep_time & 0xFF) as u8;
     cmd
 }
 
@@ -208,11 +201,11 @@ pub fn config_lora_preamble_modulation_adv_cmd(pmod_en: bool, dram_ret: u8, wake
 
     if pmod_en { cmd[2] |= 128; }
     cmd[2] |= dram_ret & 0x7;
-    cmd[3] |= (wakeup_time & 0xFF) as u8;
-    cmd[4] |= ((wakeup_time >> 8) & 0xFF) as u8;
-    cmd[5] |= (min_sleep_time & 0xFF) as u8;
+    cmd[3] |= ((wakeup_time >> 8) & 0xFF) as u8;
+    cmd[4] |= (wakeup_time & 0xFF) as u8;
+    cmd[5] |= ((min_sleep_time >> 16) & 0xFF) as u8;
     cmd[6] |= ((min_sleep_time >> 8) & 0xFF) as u8;
-    cmd[7] |= ((min_sleep_time >> 16) & 0xFF) as u8;
+    cmd[7] |= (min_sleep_time & 0xFF) as u8;
     cmd[8] |= err_thr & 0x7F;
     cmd[9] |= (min_sym & 0xF) << 4;
     cmd[9] |= detect_time_sym & 0xF;
@@ -231,9 +224,9 @@ pub fn set_lora_cad_params_cmd(nb_symbols: u8, pbl_any: bool, pnr_delta: u8, exi
     if pbl_any { cmd[3] |= 16; }
     cmd[3] |= pnr_delta & 0xF;
     cmd[4] |= exit_mode as u8;
-    cmd[5] |= (timeout & 0xFF) as u8;
+    cmd[5] |= ((timeout >> 16) & 0xFF) as u8;
     cmd[6] |= ((timeout >> 8) & 0xFF) as u8;
-    cmd[7] |= ((timeout >> 16) & 0xFF) as u8;
+    cmd[7] |= (timeout & 0xFF) as u8;
     cmd[8] |= det_peak;
     cmd
 }
@@ -261,14 +254,14 @@ pub fn set_lora_address_cmd(addr_comp_len: u8, addr_comp_pos: u8, addr: u64) -> 
 
     cmd[2] |= (addr_comp_len & 0xF) << 4;
     cmd[2] |= addr_comp_pos & 0xF;
-    cmd[3] |= (addr & 0xFF) as u8;
-    cmd[4] |= ((addr >> 8) & 0xFF) as u8;
-    cmd[5] |= ((addr >> 16) & 0xFF) as u8;
-    cmd[6] |= ((addr >> 24) & 0xFF) as u8;
-    cmd[7] |= ((addr >> 32) & 0xFF) as u8;
-    cmd[8] |= ((addr >> 40) & 0xFF) as u8;
-    cmd[9] |= ((addr >> 48) & 0xFF) as u8;
-    cmd[10] |= ((addr >> 56) & 0xFF) as u8;
+    cmd[3] |= ((addr >> 56) & 0xFF) as u8;
+    cmd[4] |= ((addr >> 48) & 0xFF) as u8;
+    cmd[5] |= ((addr >> 40) & 0xFF) as u8;
+    cmd[6] |= ((addr >> 32) & 0xFF) as u8;
+    cmd[7] |= ((addr >> 24) & 0xFF) as u8;
+    cmd[8] |= ((addr >> 16) & 0xFF) as u8;
+    cmd[9] |= ((addr >> 8) & 0xFF) as u8;
+    cmd[10] |= (addr & 0xFF) as u8;
     cmd
 }
 
@@ -313,9 +306,9 @@ pub fn set_lora_tx_sync_cmd(function: Function, dio_num: u8) -> [u8; 4] {
 
 /// Response for GetLoraRxStats command
 #[derive(Default)]
-pub struct GetLoraRxStatsRsp([u8; 10]);
+pub struct LoraRxStatsRsp([u8; 12]);
 
-impl GetLoraRxStatsRsp {
+impl LoraRxStatsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -344,14 +337,20 @@ impl GetLoraRxStatsRsp {
         ((self.0[6] as u16) << 8)
     }
 
-    /// Number of false synchronizations
-    pub fn false_synch(&self) -> u16 {
+    /// Number of preamble detection
+    pub fn detection(&self) -> u16 {
         (self.0[9] as u16) |
         ((self.0[8] as u16) << 8)
     }
+
+    /// Number of false synchronizations
+    pub fn false_synch(&self) -> u16 {
+        (self.0[11] as u16) |
+        ((self.0[10] as u16) << 8)
+    }
 }
 
-impl AsMut<[u8]> for GetLoraRxStatsRsp {
+impl AsMut<[u8]> for LoraRxStatsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -359,9 +358,9 @@ impl AsMut<[u8]> for GetLoraRxStatsRsp {
 
 /// Response for GetLoraPacketStatus command
 #[derive(Default)]
-pub struct GetLoraPacketStatusRsp([u8; 12]);
+pub struct LoraPacketStatusRsp([u8; 12]);
 
-impl GetLoraPacketStatusRsp {
+impl LoraPacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -382,14 +381,14 @@ impl GetLoraPacketStatusRsp {
         self.0[2] & 0xF
     }
 
-    /// Estimation of SNR on last packet received. In two's complement format multiplied by 4. Actual SNR in dB is snr_pkt/4
-    pub fn snr_pkt(&self) -> u8 {
+    /// Length of the last packet received
+    pub fn pkt_length(&self) -> u8 {
         self.0[3]
     }
 
-    /// Length of the last packet received
-    pub fn pkt_length(&self) -> u8 {
-        self.0[4]
+    /// Estimation of SNR on last packet received. In two's complement format multiplied by 4. Actual SNR in dB is snr_pkt/4
+    pub fn snr_pkt(&self) -> i8 {
+        self.0[4] as i8
     }
 
     /// Average over last packet received of RSSI. Actual signal power is –rssi_pkt/2 [dBm]
@@ -410,10 +409,11 @@ impl GetLoraPacketStatusRsp {
     }
 
     /// Frequency error as a signed 24b value in Hz
-    pub fn freq_offset(&self) -> u32 {
-        (self.0[10] as u32) |
-        ((self.0[9] as u32) << 8) |
-        ((self.0[8] as u32) << 16)
+    pub fn freq_offset(&self) -> i32 {
+        let raw = (self.0[10] as u32) |
+            ((self.0[9] as u32) << 8) |
+            ((self.0[8] as u32) << 16);
+        raw as i32 - if (self.0[8] & 0x80) != 0 {1<<24} else {0}
     }
 
     /// AGC gain latched on preamble
@@ -422,7 +422,7 @@ impl GetLoraPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetLoraPacketStatusRsp {
+impl AsMut<[u8]> for LoraPacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

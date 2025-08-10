@@ -52,8 +52,8 @@ pub fn set_zwave_params_cmd(zwave_mode: ZwaveMode, rx_bw: RxBw, zwave_addr_comp:
     cmd[3] |= rx_bw as u8;
     cmd[4] |= zwave_addr_comp as u8;
     cmd[5] |= pld_len;
-    cmd[6] |= (pbl_len_tx & 0xFF) as u8;
-    cmd[7] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[6] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[7] |= (pbl_len_tx & 0xFF) as u8;
     cmd[8] |= pbl_len_detect;
     cmd[9] |= (fcs_mode as u8) & 0x1;
     cmd
@@ -65,10 +65,10 @@ pub fn set_zwave_home_id_filtering_cmd(home_id: u32) -> [u8; 6] {
     cmd[0] = 0x02;
     cmd[1] = 0x98;
 
-    cmd[2] |= (home_id & 0xFF) as u8;
-    cmd[3] |= ((home_id >> 8) & 0xFF) as u8;
-    cmd[4] |= ((home_id >> 16) & 0xFF) as u8;
-    cmd[5] |= ((home_id >> 24) & 0xFF) as u8;
+    cmd[2] |= ((home_id >> 24) & 0xFF) as u8;
+    cmd[3] |= ((home_id >> 16) & 0xFF) as u8;
+    cmd[4] |= ((home_id >> 8) & 0xFF) as u8;
+    cmd[5] |= (home_id & 0xFF) as u8;
     cmd
 }
 
@@ -85,8 +85,8 @@ pub fn set_zwave_beam_filtering_cmd(beam_tag: u8, addr_len: AddrLen, node_id: u1
 
     cmd[2] |= beam_tag;
     cmd[3] |= ((addr_len as u8) & 0x1) << 7;
-    cmd[3] |= (node_id & 0xFF) as u8;
-    cmd[4] |= ((node_id >> 4) & 0xFF) as u8;
+    cmd[3] |= ((node_id >> 8) & 0xFF) as u8;
+    cmd[4] |= (node_id & 0xFF) as u8;
     cmd[5] |= id_hash;
     cmd
 }
@@ -108,15 +108,15 @@ pub fn set_zwave_scan_config_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool,
     cmd[3] |= (bitrate_ch1 as u8) & 0x3;
     cmd[4] |= (zwave_addr_comp as u8) & 0x3;
     cmd[9] |= (fcs_mode as u8) & 0x1;
-    cmd[6] |= (rf_freq_ch1 & 0xFF) as u8;
-    cmd[7] |= ((rf_freq_ch1 >> 8) & 0xFF) as u8;
-    cmd[8] |= ((rf_freq_ch1 >> 16) & 0xFF) as u8;
-    cmd[9] |= ((rf_freq_ch1 >> 24) & 0xFF) as u8;
+    cmd[6] |= ((rf_freq_ch1 >> 24) & 0xFF) as u8;
+    cmd[7] |= ((rf_freq_ch1 >> 16) & 0xFF) as u8;
+    cmd[8] |= ((rf_freq_ch1 >> 8) & 0xFF) as u8;
+    cmd[9] |= (rf_freq_ch1 & 0xFF) as u8;
     cmd[10] |= timeout_ch1;
-    cmd[11] |= (rf_freq_ch2 & 0xFF) as u8;
-    cmd[12] |= ((rf_freq_ch2 >> 8) & 0xFF) as u8;
-    cmd[13] |= ((rf_freq_ch2 >> 16) & 0xFF) as u8;
-    cmd[14] |= ((rf_freq_ch2 >> 24) & 0xFF) as u8;
+    cmd[11] |= ((rf_freq_ch2 >> 24) & 0xFF) as u8;
+    cmd[12] |= ((rf_freq_ch2 >> 16) & 0xFF) as u8;
+    cmd[13] |= ((rf_freq_ch2 >> 8) & 0xFF) as u8;
+    cmd[14] |= (rf_freq_ch2 & 0xFF) as u8;
     cmd[15] |= timeout_ch2;
     cmd
 }
@@ -138,25 +138,25 @@ pub fn set_zwave_scan_config_adv_cmd(num_ch: u8, det4: bool, det3: bool, det2: b
     cmd[3] |= (bitrate_ch1 as u8) & 0x3;
     cmd[4] |= (zwave_addr_comp as u8) & 0x3;
     cmd[9] |= (fcs_mode as u8) & 0x1;
-    cmd[6] |= (rf_freq_ch1 & 0xFF) as u8;
-    cmd[7] |= ((rf_freq_ch1 >> 8) & 0xFF) as u8;
-    cmd[8] |= ((rf_freq_ch1 >> 16) & 0xFF) as u8;
-    cmd[9] |= ((rf_freq_ch1 >> 24) & 0xFF) as u8;
+    cmd[6] |= ((rf_freq_ch1 >> 24) & 0xFF) as u8;
+    cmd[7] |= ((rf_freq_ch1 >> 16) & 0xFF) as u8;
+    cmd[8] |= ((rf_freq_ch1 >> 8) & 0xFF) as u8;
+    cmd[9] |= (rf_freq_ch1 & 0xFF) as u8;
     cmd[10] |= timeout_ch1;
-    cmd[11] |= (rf_freq_ch2 & 0xFF) as u8;
-    cmd[12] |= ((rf_freq_ch2 >> 8) & 0xFF) as u8;
-    cmd[13] |= ((rf_freq_ch2 >> 16) & 0xFF) as u8;
-    cmd[14] |= ((rf_freq_ch2 >> 24) & 0xFF) as u8;
+    cmd[11] |= ((rf_freq_ch2 >> 24) & 0xFF) as u8;
+    cmd[12] |= ((rf_freq_ch2 >> 16) & 0xFF) as u8;
+    cmd[13] |= ((rf_freq_ch2 >> 8) & 0xFF) as u8;
+    cmd[14] |= (rf_freq_ch2 & 0xFF) as u8;
     cmd[15] |= timeout_ch2;
-    cmd[16] |= (rf_freq_ch3 & 0xFF) as u8;
-    cmd[17] |= ((rf_freq_ch3 >> 8) & 0xFF) as u8;
-    cmd[18] |= ((rf_freq_ch3 >> 16) & 0xFF) as u8;
-    cmd[19] |= ((rf_freq_ch3 >> 24) & 0xFF) as u8;
+    cmd[16] |= ((rf_freq_ch3 >> 24) & 0xFF) as u8;
+    cmd[17] |= ((rf_freq_ch3 >> 16) & 0xFF) as u8;
+    cmd[18] |= ((rf_freq_ch3 >> 8) & 0xFF) as u8;
+    cmd[19] |= (rf_freq_ch3 & 0xFF) as u8;
     cmd[20] |= timeout_ch3;
-    cmd[21] |= (rf_freq_ch4 & 0xFF) as u8;
-    cmd[22] |= ((rf_freq_ch4 >> 8) & 0xFF) as u8;
-    cmd[23] |= ((rf_freq_ch4 >> 16) & 0xFF) as u8;
-    cmd[24] |= ((rf_freq_ch4 >> 24) & 0xFF) as u8;
+    cmd[21] |= ((rf_freq_ch4 >> 24) & 0xFF) as u8;
+    cmd[22] |= ((rf_freq_ch4 >> 16) & 0xFF) as u8;
+    cmd[23] |= ((rf_freq_ch4 >> 8) & 0xFF) as u8;
+    cmd[24] |= (rf_freq_ch4 & 0xFF) as u8;
     cmd[25] |= timeout_ch4;
     cmd
 }
@@ -170,9 +170,9 @@ pub fn set_zwave_scan_cmd() -> [u8; 2] {
 
 /// Response for GetZwavePacketStatus command
 #[derive(Default)]
-pub struct GetZwavePacketStatusRsp([u8; 9]);
+pub struct ZwavePacketStatusRsp([u8; 9]);
 
-impl GetZwavePacketStatusRsp {
+impl ZwavePacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -212,7 +212,7 @@ impl GetZwavePacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetZwavePacketStatusRsp {
+impl AsMut<[u8]> for ZwavePacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

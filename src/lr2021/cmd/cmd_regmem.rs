@@ -7,13 +7,13 @@ pub fn write_reg_mem32_cmd(addr: u32, data: u32) -> [u8; 9] {
     cmd[0] = 0x01;
     cmd[1] = 0x04;
 
-    cmd[2] |= (addr & 0xFF) as u8;
+    cmd[2] |= ((addr >> 16) & 0xFF) as u8;
     cmd[3] |= ((addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((addr >> 16) & 0xFF) as u8;
-    cmd[5] |= (data & 0xFF) as u8;
-    cmd[6] |= ((data >> 8) & 0xFF) as u8;
-    cmd[7] |= ((data >> 16) & 0xFF) as u8;
-    cmd[8] |= ((data >> 24) & 0xFF) as u8;
+    cmd[4] |= (addr & 0xFF) as u8;
+    cmd[5] |= ((data >> 24) & 0xFF) as u8;
+    cmd[6] |= ((data >> 16) & 0xFF) as u8;
+    cmd[7] |= ((data >> 8) & 0xFF) as u8;
+    cmd[8] |= (data & 0xFF) as u8;
     cmd
 }
 
@@ -23,17 +23,17 @@ pub fn write_reg_mem_mask32_cmd(addr: u32, mask: u32, data: u32) -> [u8; 13] {
     cmd[0] = 0x01;
     cmd[1] = 0x05;
 
-    cmd[2] |= (addr & 0xFF) as u8;
+    cmd[2] |= ((addr >> 16) & 0xFF) as u8;
     cmd[3] |= ((addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((addr >> 16) & 0xFF) as u8;
-    cmd[5] |= (mask & 0xFF) as u8;
-    cmd[6] |= ((mask >> 8) & 0xFF) as u8;
-    cmd[7] |= ((mask >> 16) & 0xFF) as u8;
-    cmd[8] |= ((mask >> 24) & 0xFF) as u8;
-    cmd[9] |= (data & 0xFF) as u8;
-    cmd[10] |= ((data >> 8) & 0xFF) as u8;
-    cmd[11] |= ((data >> 16) & 0xFF) as u8;
-    cmd[12] |= ((data >> 24) & 0xFF) as u8;
+    cmd[4] |= (addr & 0xFF) as u8;
+    cmd[5] |= ((mask >> 24) & 0xFF) as u8;
+    cmd[6] |= ((mask >> 16) & 0xFF) as u8;
+    cmd[7] |= ((mask >> 8) & 0xFF) as u8;
+    cmd[8] |= (mask & 0xFF) as u8;
+    cmd[9] |= ((data >> 24) & 0xFF) as u8;
+    cmd[10] |= ((data >> 16) & 0xFF) as u8;
+    cmd[11] |= ((data >> 8) & 0xFF) as u8;
+    cmd[12] |= (data & 0xFF) as u8;
     cmd
 }
 
@@ -43,9 +43,9 @@ pub fn read_reg_mem32_req(addr: u32, len: u8) -> [u8; 6] {
     cmd[0] = 0x01;
     cmd[1] = 0x06;
 
-    cmd[2] |= (addr & 0xFF) as u8;
+    cmd[2] |= ((addr >> 16) & 0xFF) as u8;
     cmd[3] |= ((addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((addr >> 16) & 0xFF) as u8;
+    cmd[4] |= (addr & 0xFF) as u8;
     cmd[5] |= len;
     cmd
 }

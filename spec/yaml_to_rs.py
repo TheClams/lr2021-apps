@@ -56,6 +56,7 @@ class BytePosition:
 class Field:
     name: str
     bit_width: int
+    signed: bool
     byte_positions: list[BytePosition]
     description: str
     optional: bool = False
@@ -108,11 +109,12 @@ def parse_field(field_data: dict[str, Any], context: str) -> Field:  # pyright: 
         name : str = field_data['name']  # pyright: ignore[reportAny]
         bit_width : int = field_data['bit_width']  # pyright: ignore[reportAny]
         byte_positions = parse_byte_positions(field_data.get('byte_positions', []))  # pyright: ignore[reportAny]
+        signed : bool = field_data.get('signed', False)  # pyright: ignore[reportAny]
         description : str = field_data['description']  # pyright: ignore[reportAny]
         optional : bool = field_data.get('optional', False)  # pyright: ignore[reportAny]
         enum = field_data.get('enum')
         
-        field = Field(name, bit_width, byte_positions, description, optional, enum)
+        field = Field(name, bit_width, signed, byte_positions, description, optional, enum)
         validate_field(field, f"{context}.{name}")
         return field
         
@@ -154,13 +156,13 @@ def get_rust_type(field: Field) -> str:
     elif field.bit_width == 1:
         return "bool"
     elif field.bit_width <= 8:
-        return "u8"
+        return "i8" if field.signed else "u8"
     elif field.bit_width <= 16:
-        return "u16"
+        return "i16" if field.signed else "u16"
     elif field.bit_width <= 32:
-        return "u32"
+        return "i32" if field.signed else "u32"
     else:
-        return "u64"
+        return "i64" if field.signed else "u64"
 
 def gen_enum(field: Field) -> str:
     """Generate Rust enum for a field"""
@@ -268,7 +270,7 @@ def gen_req(cmd: Command, _category: str, advanced: bool = False) -> str:
                     lines.append(f"    cmd[2] |= 8; // Force format to Celsius")
                 else:
                     mask = (1 << param.bit_width) - 1 if param.bit_width < 8 else 255
-                    shift_right = sum((p_msb - p_lsb + 1) for p_pos in param.byte_positions[:param.byte_positions.index(pos)] for p_msb, p_lsb in [p_pos.get_bit_range_tuple()])
+                    shift_right = param.bit_width - sum((p_msb - p_lsb + 1) for p_pos in param.byte_positions[:param.byte_positions.index(pos)+1] for p_msb, p_lsb in [p_pos.get_bit_range_tuple()])
                     l = f"    cmd[{pos.byte_index}] |= "
                     if param.bit_width > 8:  l += '(';
                     if lsb!= 0: l += '(';
@@ -305,6 +307,8 @@ def gen_rsp(cmd: Command, _category: str, advanced: bool = False) -> str:
     struct_name = f"{cmd.name}Rsp"
     if advanced:
         struct_name += "Adv"
+    if struct_name.startswith("Get"):
+        struct_name = struct_name[3:]
     
     # Filter fields based on advanced flag
     if advanced:
@@ -352,37 +356,44 @@ def gen_rsp(cmd: Command, _category: str, advanced: bool = False) -> str:
             lines.append('        ZwaveMode::new(self.0[6] & 0x3)')
             lines.append('    }')
             continue
-        if cmd.name == 'GetTemp' and field.name=='temp_celsius':
-            lines.append('    pub fn value(&self) -> i16 {')
-            lines.append('        let raw = (self.0[2] as u16) << 5 | ((self.0[3] as u16) >> 3);')
-            lines.append('        raw as i16 - if (self.0[2] & 0x80) != 0 {1<<13} else {0}')
-            lines.append('    }')
-            continue
 
         # Implementation
         lines.append(f"    pub fn {field.name}(&self) -> {return_type} {{")
+        l = '        '
         
         if len(field.byte_positions) == 1 and field.bit_width <= 8:
             # Simple single byte case
             pos = field.byte_positions[0]
             msb, lsb = pos.get_bit_range_tuple()
-            if msb == 7 and lsb == 0:
-                l = f"        self.0[{pos.byte_index}]"
+            if field.signed and field.bit_width!=8:
+                l+='('
+            if field.bit_width==8:
+                l += f"self.0[{pos.byte_index}]"
             elif lsb == 0:
                 bit_count = msb - lsb + 1
                 mask = (1 << bit_count) - 1
-                l = f"        self.0[{pos.byte_index}] & 0x{mask:X}"
+                l += f"self.0[{pos.byte_index}] & 0x{mask:X}"
             else:
                 bit_count = msb - lsb + 1
                 mask = (1 << bit_count) - 1
-                l = f"        (self.0[{pos.byte_index}] >> {lsb}) & 0x{mask:X}"
+                l += f"(self.0[{pos.byte_index}] >> {lsb}) & 0x{mask:X}"
+            if field.signed and field.bit_width!=8:
+                l+=')'
             if return_type=='bool':
                 l += ' != 0'
+            elif field.signed:
+                mask = 1 << msb
+                l += f' as i8'
+                if field.bit_width<8:
+                    l += f' - if (self.0[{pos.byte_index}] & {mask:#0x}) != 0 {{1<<{field.bit_width}}} else {{0}}'
 
         else:
             # Multi-byte or complex bit extraction
             shift = 0
-            l = '        '
+            raw_type = return_type.replace('i','u') if not field.enum else return_type
+
+            if field.signed:
+                l += 'let raw = '
             for (i,pos) in enumerate(reversed(field.byte_positions)):  # Process LSB first
                 msb, lsb = pos.get_bit_range_tuple()
 
@@ -397,12 +408,20 @@ def gen_rsp(cmd: Command, _category: str, advanced: bool = False) -> str:
                 if has_mask :
                     mask = (1 << bit_count) - 1
                     l += f" & 0x{mask:X})"
-                l+= f' as {return_type})'
+                l+= f' as {raw_type})'
                 if shift != 0 :
                     l += f' << {shift})'
                 shift += bit_count
                 if i+1 != len(field.byte_positions):
                     l+= ' |\n        '
+                    if field.signed: l+= '    ';
+            if field.signed:
+                bi = field.byte_positions[0].byte_index
+                mask = 1 << field.byte_positions[0].get_bit_range_tuple()[0]
+                l+= f';\n        raw as {return_type}'
+                # No need to apply any offset when already aligned on a word boundary
+                if field.bit_width!=16 and field.bit_width!=32 and field.bit_width!=64:
+                    l+= f' - if (self.0[{bi}] & {mask:#0x}) != 0 {{1<<{field.bit_width}}} else {{0}}'
         lines.append(l)
         
         lines.append("    }")
@@ -416,13 +435,13 @@ def gen_rsp(cmd: Command, _category: str, advanced: bool = False) -> str:
     lines.append("}")
 
     if cmd.name == 'GetTemp':
-        lines.append("impl defmt::Format for GetTempRsp {")
+        lines.append("impl defmt::Format for TempRsp {")
         lines.append("    fn format(&self, fmt: defmt::Formatter) {")
         lines.append("        defmt::write!(fmt, \"{}.{:02}\", self.0[2] as i8, (self.0[3] as u16 * 100) >> 8);")
         lines.append("    }")
         lines.append("}")
     elif cmd.name == 'GetVersion':
-        lines.append("impl defmt::Format for GetVersionRsp {")
+        lines.append("impl defmt::Format for VersionRsp {")
         lines.append("    fn format(&self, fmt: defmt::Formatter) {")
         lines.append("        defmt::write!(fmt, \"{:02x}.{:02x}\", self.major(), self.minor());")
         lines.append("    }")

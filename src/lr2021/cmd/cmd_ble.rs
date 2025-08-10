@@ -57,13 +57,13 @@ pub fn set_ble_channel_params_cmd(crc_in_fifo: CrcInFifo, channel_type: ChannelT
     cmd[2] |= ((crc_in_fifo as u8) & 0x1) << 4;
     cmd[2] |= (channel_type as u8) & 0xF;
     cmd[3] |= whit_init;
-    cmd[4] |= (crc_init & 0xFF) as u8;
+    cmd[4] |= ((crc_init >> 16) & 0xFF) as u8;
     cmd[5] |= ((crc_init >> 8) & 0xFF) as u8;
-    cmd[6] |= ((crc_init >> 16) & 0xFF) as u8;
-    cmd[7] |= (syncword & 0xFF) as u8;
-    cmd[8] |= ((syncword >> 8) & 0xFF) as u8;
-    cmd[9] |= ((syncword >> 16) & 0xFF) as u8;
-    cmd[10] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[6] |= (crc_init & 0xFF) as u8;
+    cmd[7] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[8] |= ((syncword >> 16) & 0xFF) as u8;
+    cmd[9] |= ((syncword >> 8) & 0xFF) as u8;
+    cmd[10] |= (syncword & 0xFF) as u8;
     cmd
 }
 
@@ -96,9 +96,9 @@ pub fn set_ble_tx_pdu_len_cmd(pdu_len: u8) -> [u8; 3] {
 
 /// Response for GetBlePacketStatus command
 #[derive(Default)]
-pub struct GetBlePacketStatusRsp([u8; 8]);
+pub struct BlePacketStatusRsp([u8; 8]);
 
-impl GetBlePacketStatusRsp {
+impl BlePacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -133,7 +133,7 @@ impl GetBlePacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetBlePacketStatusRsp {
+impl AsMut<[u8]> for BlePacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

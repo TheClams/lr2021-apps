@@ -41,12 +41,12 @@ pub fn set_raw_iq_tx_params_cmd(tx_sample_num: u16, tx_sample_rate: u32, tx_mode
     cmd[0] = 0x02;
     cmd[1] = 0x93;
 
-    cmd[2] |= (tx_sample_num & 0xFF) as u8;
-    cmd[3] |= ((tx_sample_num >> 8) & 0xFF) as u8;
-    cmd[4] |= (tx_sample_rate & 0xFF) as u8;
-    cmd[5] |= ((tx_sample_rate >> 8) & 0xFF) as u8;
-    cmd[6] |= ((tx_sample_rate >> 16) & 0xFF) as u8;
-    cmd[7] |= ((tx_sample_rate >> 24) & 0xFF) as u8;
+    cmd[2] |= ((tx_sample_num >> 8) & 0xFF) as u8;
+    cmd[3] |= (tx_sample_num & 0xFF) as u8;
+    cmd[4] |= ((tx_sample_rate >> 24) & 0xFF) as u8;
+    cmd[5] |= ((tx_sample_rate >> 16) & 0xFF) as u8;
+    cmd[6] |= ((tx_sample_rate >> 8) & 0xFF) as u8;
+    cmd[7] |= (tx_sample_rate & 0xFF) as u8;
     cmd[8] |= (tx_mode as u8) & 0x3;
     cmd
 }
@@ -70,9 +70,9 @@ pub fn set_raw_iq_trigger_adv_cmd(trigger_start: TriggerStart, trigger_stop: Tri
 
     cmd[2] |= ((trigger_start as u8) & 0xF) << 4;
     cmd[2] |= (trigger_stop as u8) & 0xF;
-    cmd[3] |= (rssi_up & 0xFF) as u8;
-    cmd[5] |= ((rssi_up >> 8) & 0xFF) as u8;
-    cmd[4] |= (rssi_down & 0xFF) as u8;
-    cmd[5] |= (((rssi_down >> 8) & 0xFF) << 1) as u8;
+    cmd[3] |= ((rssi_up >> 1) & 0xFF) as u8;
+    cmd[5] |= (rssi_up & 0xFF) as u8;
+    cmd[4] |= ((rssi_down >> 1) & 0xFF) as u8;
+    cmd[5] |= ((rssi_down & 0xFF) << 1) as u8;
     cmd
 }

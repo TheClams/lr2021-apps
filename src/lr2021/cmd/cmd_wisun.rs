@@ -74,8 +74,8 @@ pub fn set_wisun_packet_params_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: 
     cmd[2] |= ((crc_on as u8) & 0x1) << 3;
     cmd[2] |= ((mode_switch_tx as u8) & 0x1) << 2;
     cmd[2] |= (fec_tx as u8) & 0x3;
-    cmd[3] |= (frame_len_tx & 0xFF) as u8;
-    cmd[4] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[3] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[4] |= (frame_len_tx & 0xFF) as u8;
     cmd[5] |= pbl_len_tx;
     cmd
 }
@@ -91,8 +91,8 @@ pub fn set_wisun_packet_params_adv_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_
     cmd[2] |= ((crc_on as u8) & 0x1) << 3;
     cmd[2] |= ((mode_switch_tx as u8) & 0x1) << 2;
     cmd[2] |= (fec_tx as u8) & 0x3;
-    cmd[3] |= (frame_len_tx & 0xFF) as u8;
-    cmd[4] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[3] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[4] |= (frame_len_tx & 0xFF) as u8;
     cmd[5] |= pbl_len_tx;
     cmd[6] |= pbl_detect;
     cmd
@@ -109,8 +109,8 @@ pub fn set_wisun_packet_len_cmd(frame_len_tx: u16) -> [u8; 4] {
     cmd[0] = 0x02;
     cmd[1] = 0x74;
 
-    cmd[2] |= (frame_len_tx & 0xFF) as u8;
-    cmd[3] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[2] |= ((frame_len_tx >> 8) & 0xFF) as u8;
+    cmd[3] |= (frame_len_tx & 0xFF) as u8;
     cmd
 }
 
@@ -118,9 +118,9 @@ pub fn set_wisun_packet_len_cmd(frame_len_tx: u16) -> [u8; 4] {
 
 /// Response for GetWisunPacketStatus command
 #[derive(Default)]
-pub struct GetWisunPacketStatusRsp([u8; 11]);
+pub struct WisunPacketStatusRsp([u8; 11]);
 
-impl GetWisunPacketStatusRsp {
+impl WisunPacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -166,7 +166,7 @@ impl GetWisunPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetWisunPacketStatusRsp {
+impl AsMut<[u8]> for WisunPacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

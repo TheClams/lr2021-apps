@@ -128,8 +128,8 @@ pub fn set_flrc_packet_params_cmd(agc_pbl_len: AgcPblLen, sync_len: SyncLen, syn
     cmd[3] |= ((sync_match as u8) & 0x7) << 3;
     cmd[3] |= ((pkt_format as u8) & 0x1) << 2;
     cmd[3] |= (crc as u8) & 0x3;
-    cmd[4] |= (pld_len & 0xFF) as u8;
-    cmd[5] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[4] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[5] |= (pld_len & 0xFF) as u8;
     cmd
 }
 
@@ -145,10 +145,10 @@ pub fn set_flrc_syncword_cmd(sw_num: u8, syncword: u32) -> [u8; 7] {
     cmd[1] = 0x4C;
 
     cmd[2] |= sw_num;
-    cmd[3] |= (syncword & 0xFF) as u8;
-    cmd[4] |= ((syncword >> 8) & 0xFF) as u8;
-    cmd[5] |= ((syncword >> 16) & 0xFF) as u8;
-    cmd[6] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[3] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[4] |= ((syncword >> 16) & 0xFF) as u8;
+    cmd[5] |= ((syncword >> 8) & 0xFF) as u8;
+    cmd[6] |= (syncword & 0xFF) as u8;
     cmd
 }
 
@@ -156,9 +156,9 @@ pub fn set_flrc_syncword_cmd(sw_num: u8, syncword: u32) -> [u8; 7] {
 
 /// Response for GetFlrcPacketStatus command
 #[derive(Default)]
-pub struct GetFlrcPacketStatusRsp([u8; 7]);
+pub struct FlrcPacketStatusRsp([u8; 7]);
 
-impl GetFlrcPacketStatusRsp {
+impl FlrcPacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -193,7 +193,7 @@ impl GetFlrcPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetFlrcPacketStatusRsp {
+impl AsMut<[u8]> for FlrcPacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

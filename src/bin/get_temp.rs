@@ -3,7 +3,7 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_stm32::{exti::ExtiInput, gpio::{Input, Level, Output, Pull, Speed}, time::Hertz};
+use embassy_stm32::{gpio::{Input, Level, Output, Pull, Speed}, time::Hertz};
 use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
@@ -52,7 +52,6 @@ async fn main(spawner: Spawner) {
     // Control pins
     let busy = Input::new(p.PB3, Pull::Up);
     let nreset = Output::new(p.PA0, Level::High, Speed::Low);
-    let irq = ExtiInput::new(p.PA10, p.EXTI10, Pull::Up);
 
     // SPI
     let mut spi_config = Config::default();
@@ -60,12 +59,12 @@ async fn main(spawner: Spawner) {
     let spi = Spi::new(p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config);
     let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
-    let mut lr2021 = Lr2021::new(nreset, busy, irq, spi, nss);
+    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
     lr2021.reset().await
         .unwrap_or_else(|_| error!("Unable to reset chip !"));
 
     // Check version
-    let mut fw_version = cmd_system::GetVersionRsp::new();
+    let mut fw_version = cmd_system::VersionRsp::new();
     match lr2021.cmd_rd(&cmd_system::get_version_req(), fw_version.as_mut()).await {
         Ok(_) => info!("FW Version {:02x}.{:02x}", fw_version.major(), fw_version.minor()),
         Err(e) => error!("{}", e),
@@ -83,7 +82,7 @@ async fn main(spawner: Spawner) {
     // Get a temperature measurement every 15 seconds
     loop {
         Timer::after_secs(15).await;
-        let mut temp = cmd_system::GetTempRsp::new();
+        let mut temp = cmd_system::TempRsp::new();
         match lr2021.cmd_rd(&cmd, temp.as_mut()).await {
             Ok(_) => info!("Temp = {}", temp),
             Err(e) => error!("{}", e),

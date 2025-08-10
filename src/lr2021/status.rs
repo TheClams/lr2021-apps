@@ -35,7 +35,7 @@ pub enum ResetSrc {
 
 /// Chip Mode
 #[derive(Format)]
-pub enum ChipMode {
+pub enum ChipModeStatus {
     Sleep = 0,
     Rc    = 1,
     Xosc  = 2,
@@ -91,16 +91,16 @@ impl Status {
     }
 
     /// Return source of last reset
-    pub fn chip_mode(&self) -> ChipMode {
+    pub fn chip_mode(&self) -> ChipModeStatus {
         let bits_mode = self.0 & 7;
         match bits_mode {
-            0 => ChipMode::Sleep,
-            1 => ChipMode::Rc,
-            2 => ChipMode::Xosc,
-            3 => ChipMode::Fs,
-            4 => ChipMode::Rx,
-            5 => ChipMode::Tx,
-            _ => ChipMode::Unknown,
+            0 => ChipModeStatus::Sleep,
+            1 => ChipModeStatus::Rc,
+            2 => ChipModeStatus::Xosc,
+            3 => ChipModeStatus::Fs,
+            4 => ChipModeStatus::Rx,
+            5 => ChipModeStatus::Tx,
+            _ => ChipModeStatus::Unknown,
         }
     }
 
@@ -188,6 +188,10 @@ impl Intr {
             | ((*bytes.get(2).unwrap_or(&0) as u32) <<  8)
             | (*bytes.get(3).unwrap_or(&0) as u32);
         Intr(v)
+    }
+
+    pub fn new(value: u32) -> Intr {
+        Intr(value)
     }
 
     /// Return the interrupt status as u32

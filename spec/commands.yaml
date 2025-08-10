@@ -1639,7 +1639,7 @@ categories:
             SF10: 10
             SF11: 11
             SF12: 12
-        - name: bw
+        - name: lora_bw
           bit_width: 4
           byte_positions:
           - - 2
@@ -1663,7 +1663,7 @@ categories:
             BW_200: 13
             BW_400: 14
             BW_800: 15
-        - name: cr
+        - name: lora_cr
           bit_width: 4
           byte_positions:
           - - 3
@@ -1672,15 +1672,15 @@ categories:
           optional: false
           enum:
             NO_CODING: 0
-            PARITY_SI: 1
-            HAM_2_3_SI: 2
-            HAM_7_5_SI: 3
-            HAM_1_2_SI: 4
-            PARITY_LI: 5
-            HAM_2_3_LI: 6
-            HAM_1_2_LI: 7
-            CC_2_3: 8
-            CC_1_2: 9
+            CR1_HAM_45_SI: 1
+            CR2_HAM_23_SI: 2
+            CR3_HAM_75_SI: 3
+            CR4_HAM_12_SI: 4
+            CR5_HAM_45_LI: 5
+            CR6_HAM_23_LI: 6
+            CR7_HAM_12_LI: 7
+            CR8_CC_23: 8
+            CR9_CC_12: 9
         - name: ldro
           bit_width: 2
           byte_positions:
@@ -1723,16 +1723,13 @@ categories:
           enum:
             EXPLICIT: 0
             IMPLICIT: 1
-        - name: crc
+        - name: crc_en
           bit_width: 1
           byte_positions:
           - - 5
             - '1'
           description: CRC enable
           optional: false
-          enum:
-            CRC_OFF: 0
-            CRC_ON: 1
         - name: invert_iq
           bit_width: 1
           byte_positions:
@@ -2072,12 +2069,21 @@ categories:
             - '7:0'
           description: Number of received packets with a header error
           optional: false
-        - name: false_synch
+        - name: detection
           bit_width: 16
           byte_positions:
           - - 8
             - '7:0'
           - - 9
+            - '7:0'
+          description: Number of preamble detection
+          optional: false
+        - name: false_synch
+          bit_width: 16
+          byte_positions:
+          - - 10
+            - '7:0'
+          - - 11
             - '7:0'
           description: Number of false synchronizations
           optional: false
@@ -2101,20 +2107,21 @@ categories:
             - '3:0'
           description: Coding rate from header (explicit mode) or configured setting (implicit mode)
           optional: false
-        - name: snr_pkt
+        - name: pkt_length
           bit_width: 8
           byte_positions:
           - - 3
             - '7:0'
-          description: Estimation of SNR on last packet received. In two's complement format multiplied by 4. Actual SNR in
-            dB is snr_pkt/4
+          description: Length of the last packet received
           optional: false
-        - name: pkt_length
+        - name: snr_pkt
           bit_width: 8
+          signed: true
           byte_positions:
           - - 4
             - '7:0'
-          description: Length of the last packet received
+          description: Estimation of SNR on last packet received. In two's complement format multiplied by 4. Actual SNR in
+            dB is snr_pkt/4
           optional: false
         - name: rssi_pkt
           bit_width: 9
@@ -2153,6 +2160,7 @@ categories:
           - - 10
             - '7:0'
           description: Frequency error as a signed 24b value in Hz
+          signed: true
           optional: false
           internal: true
         - name: gain_step_pre
@@ -3451,7 +3459,7 @@ categories:
             - '3:0'
           description: DIO number (allowed values are 5-11)
           optional: false
-        - name: func
+        - name: dio_func
           bit_width: 4
           byte_positions:
           - - 3
@@ -4005,6 +4013,7 @@ categories:
         status_fields:
         - name: temp_celsius
           bit_width: 13
+          signed: true
           byte_positions:
           - - 2
             - '7:0'
@@ -4038,6 +4047,37 @@ categories:
             - '7:0'
           description: 32-bit random number
           optional: false
+      SetSleep:
+        opcode: 295
+        description: Put device in sleep mode
+        parameters:
+        - name: clk_32k_en
+          bit_width: 1
+          byte_positions:
+          - - 2
+            - '0'
+          description: Enable LF clock
+          optional: false
+        - name: ret_en
+          bit_width: 4
+          byte_positions:
+          - - 2
+            - '4:1'
+          description: Enable Retention for ram0 to 3 (1-3 are for the patch ram)
+          optional: false
+        - name: sleep_time
+          bit_width: 32
+          byte_positions:
+          - - 3
+            - '7:0'
+          - - 4
+            - '7:0'
+          - - 5
+            - '7:0'
+          - - 6
+            - '7:0'
+          description: Optional sleep time (required when clk_32k_en is enabled)
+          optional: true
       SetStandby:
         opcode: 296
         description: Put device in standby mode (XOSC or RC)

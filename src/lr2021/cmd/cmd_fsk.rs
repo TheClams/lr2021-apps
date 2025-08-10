@@ -187,15 +187,15 @@ pub fn set_fsk_modulation_params_cmd(bitrate: u32, pulse_shape: PulseShape, rx_b
     cmd[0] = 0x02;
     cmd[1] = 0x40;
 
-    cmd[2] |= (bitrate & 0xFF) as u8;
-    cmd[3] |= ((bitrate >> 8) & 0xFF) as u8;
-    cmd[4] |= ((bitrate >> 16) & 0xFF) as u8;
-    cmd[5] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[2] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[3] |= ((bitrate >> 16) & 0xFF) as u8;
+    cmd[4] |= ((bitrate >> 8) & 0xFF) as u8;
+    cmd[5] |= (bitrate & 0xFF) as u8;
     cmd[6] |= (pulse_shape as u8) & 0xF;
     cmd[7] |= rx_bw as u8;
-    cmd[8] |= (fdev & 0xFF) as u8;
+    cmd[8] |= ((fdev >> 16) & 0xFF) as u8;
     cmd[9] |= ((fdev >> 8) & 0xFF) as u8;
-    cmd[10] |= ((fdev >> 16) & 0xFF) as u8;
+    cmd[10] |= (fdev & 0xFF) as u8;
     cmd
 }
 
@@ -205,14 +205,14 @@ pub fn set_fsk_packet_params_cmd(pbl_len_tx: u16, pbl_len_detect: PblLenDetect, 
     cmd[0] = 0x02;
     cmd[1] = 0x41;
 
-    cmd[2] |= (pbl_len_tx & 0xFF) as u8;
-    cmd[3] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[2] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[3] |= (pbl_len_tx & 0xFF) as u8;
     cmd[4] |= pbl_len_detect as u8;
     cmd[5] |= ((pld_len_unit as u8) & 0x1) << 4;
     cmd[5] |= ((addr_comp as u8) & 0x3) << 2;
     cmd[5] |= (fsk_pkt_format as u8) & 0x3;
-    cmd[6] |= (pld_len & 0xFF) as u8;
-    cmd[7] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[6] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[7] |= (pld_len & 0xFF) as u8;
     cmd[8] |= ((crc as u8) & 0xF) << 4;
     cmd[8] |= dc_free & 0xF;
     cmd
@@ -225,8 +225,8 @@ pub fn set_fsk_whitening_params_cmd(whiten_type: WhitenType, init: u16) -> [u8; 
     cmd[1] = 0x42;
 
     cmd[2] |= ((whiten_type as u8) & 0x1) << 4;
-    cmd[2] |= (init & 0xFF) as u8;
-    cmd[3] |= ((init >> 4) & 0xFF) as u8;
+    cmd[2] |= ((init >> 8) & 0xFF) as u8;
+    cmd[3] |= (init & 0xFF) as u8;
     cmd
 }
 
@@ -236,14 +236,14 @@ pub fn set_fsk_crc_params_cmd(polynom: u32, init: u32) -> [u8; 10] {
     cmd[0] = 0x02;
     cmd[1] = 0x43;
 
-    cmd[2] |= (polynom & 0xFF) as u8;
-    cmd[3] |= ((polynom >> 8) & 0xFF) as u8;
-    cmd[4] |= ((polynom >> 16) & 0xFF) as u8;
-    cmd[5] |= ((polynom >> 24) & 0xFF) as u8;
-    cmd[6] |= (init & 0xFF) as u8;
-    cmd[7] |= ((init >> 8) & 0xFF) as u8;
-    cmd[8] |= ((init >> 16) & 0xFF) as u8;
-    cmd[9] |= ((init >> 24) & 0xFF) as u8;
+    cmd[2] |= ((polynom >> 24) & 0xFF) as u8;
+    cmd[3] |= ((polynom >> 16) & 0xFF) as u8;
+    cmd[4] |= ((polynom >> 8) & 0xFF) as u8;
+    cmd[5] |= (polynom & 0xFF) as u8;
+    cmd[6] |= ((init >> 24) & 0xFF) as u8;
+    cmd[7] |= ((init >> 16) & 0xFF) as u8;
+    cmd[8] |= ((init >> 8) & 0xFF) as u8;
+    cmd[9] |= (init & 0xFF) as u8;
     cmd
 }
 
@@ -253,14 +253,14 @@ pub fn set_fsk_sync_word_cmd(syncword: u64, bit_order: BitOrder, nb_bits: u8) ->
     cmd[0] = 0x02;
     cmd[1] = 0x44;
 
-    cmd[2] |= (syncword & 0xFF) as u8;
-    cmd[3] |= ((syncword >> 8) & 0xFF) as u8;
-    cmd[4] |= ((syncword >> 16) & 0xFF) as u8;
-    cmd[5] |= ((syncword >> 24) & 0xFF) as u8;
-    cmd[6] |= ((syncword >> 32) & 0xFF) as u8;
-    cmd[7] |= ((syncword >> 40) & 0xFF) as u8;
-    cmd[8] |= ((syncword >> 48) & 0xFF) as u8;
-    cmd[9] |= ((syncword >> 56) & 0xFF) as u8;
+    cmd[2] |= ((syncword >> 56) & 0xFF) as u8;
+    cmd[3] |= ((syncword >> 48) & 0xFF) as u8;
+    cmd[4] |= ((syncword >> 40) & 0xFF) as u8;
+    cmd[5] |= ((syncword >> 32) & 0xFF) as u8;
+    cmd[6] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[7] |= ((syncword >> 16) & 0xFF) as u8;
+    cmd[8] |= ((syncword >> 8) & 0xFF) as u8;
+    cmd[9] |= (syncword & 0xFF) as u8;
     cmd[10] |= ((bit_order as u8) & 0x1) << 7;
     cmd[10] |= nb_bits & 0x7F;
     cmd
@@ -291,9 +291,9 @@ pub fn get_fsk_packet_status_req() -> [u8; 2] {
 
 /// Response for GetFskRxStats command
 #[derive(Default)]
-pub struct GetFskRxStatsRsp([u8; 16]);
+pub struct FskRxStatsRsp([u8; 16]);
 
-impl GetFskRxStatsRsp {
+impl FskRxStatsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -347,7 +347,7 @@ impl GetFskRxStatsRsp {
     }
 }
 
-impl AsMut<[u8]> for GetFskRxStatsRsp {
+impl AsMut<[u8]> for FskRxStatsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -355,9 +355,9 @@ impl AsMut<[u8]> for GetFskRxStatsRsp {
 
 /// Response for GetFskPacketStatus command
 #[derive(Default)]
-pub struct GetFskPacketStatusRsp([u8; 8]);
+pub struct FskPacketStatusRsp([u8; 8]);
 
-impl GetFskPacketStatusRsp {
+impl FskPacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -402,7 +402,7 @@ impl GetFskPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetFskPacketStatusRsp {
+impl AsMut<[u8]> for FskPacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

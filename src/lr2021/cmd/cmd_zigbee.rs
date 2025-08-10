@@ -36,8 +36,8 @@ pub fn set_zigbee_params_cmd(zigbee_mode: ZigbeeMode, rx_bw: RxBw, pld_len: u8, 
     cmd[2] |= zigbee_mode as u8;
     cmd[3] |= rx_bw as u8;
     cmd[4] |= pld_len;
-    cmd[5] |= (pbl_len_tx & 0xFF) as u8;
-    cmd[6] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[5] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
+    cmd[6] |= (pbl_len_tx & 0xFF) as u8;
     cmd[7] |= ((address_on as u8) & 0x1) << 2;
     cmd[7] |= (fcs_mode as u8) & 0x1;
     cmd
@@ -64,18 +64,18 @@ pub fn set_zigbee_address_cmd(long_dest_addr: u64, short_dest_addr: u16, pan_id:
     cmd[0] = 0x02;
     cmd[1] = 0xA3;
 
-    cmd[2] |= (long_dest_addr & 0xFF) as u8;
-    cmd[3] |= ((long_dest_addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((long_dest_addr >> 16) & 0xFF) as u8;
-    cmd[5] |= ((long_dest_addr >> 24) & 0xFF) as u8;
-    cmd[6] |= ((long_dest_addr >> 32) & 0xFF) as u8;
-    cmd[7] |= ((long_dest_addr >> 40) & 0xFF) as u8;
-    cmd[8] |= ((long_dest_addr >> 48) & 0xFF) as u8;
-    cmd[9] |= ((long_dest_addr >> 56) & 0xFF) as u8;
-    cmd[10] |= (short_dest_addr & 0xFF) as u8;
-    cmd[11] |= ((short_dest_addr >> 8) & 0xFF) as u8;
-    cmd[12] |= (pan_id & 0xFF) as u8;
-    cmd[13] |= ((pan_id >> 8) & 0xFF) as u8;
+    cmd[2] |= ((long_dest_addr >> 56) & 0xFF) as u8;
+    cmd[3] |= ((long_dest_addr >> 48) & 0xFF) as u8;
+    cmd[4] |= ((long_dest_addr >> 40) & 0xFF) as u8;
+    cmd[5] |= ((long_dest_addr >> 32) & 0xFF) as u8;
+    cmd[6] |= ((long_dest_addr >> 24) & 0xFF) as u8;
+    cmd[7] |= ((long_dest_addr >> 16) & 0xFF) as u8;
+    cmd[8] |= ((long_dest_addr >> 8) & 0xFF) as u8;
+    cmd[9] |= (long_dest_addr & 0xFF) as u8;
+    cmd[10] |= ((short_dest_addr >> 8) & 0xFF) as u8;
+    cmd[11] |= (short_dest_addr & 0xFF) as u8;
+    cmd[12] |= ((pan_id >> 8) & 0xFF) as u8;
+    cmd[13] |= (pan_id & 0xFF) as u8;
     cmd[14] |= trans_id;
     cmd
 }
@@ -84,9 +84,9 @@ pub fn set_zigbee_address_cmd(long_dest_addr: u64, short_dest_addr: u16, pan_id:
 
 /// Response for GetZigbeePacketStatus command
 #[derive(Default)]
-pub struct GetZigbeePacketStatusRsp([u8; 9]);
+pub struct ZigbeePacketStatusRsp([u8; 9]);
 
-impl GetZigbeePacketStatusRsp {
+impl ZigbeePacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -126,7 +126,7 @@ impl GetZigbeePacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetZigbeePacketStatusRsp {
+impl AsMut<[u8]> for ZigbeePacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

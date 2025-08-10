@@ -121,10 +121,10 @@ pub fn set_rf_frequency_cmd(rf_freq: u32) -> [u8; 6] {
     cmd[0] = 0x02;
     cmd[1] = 0x00;
 
-    cmd[2] |= (rf_freq & 0xFF) as u8;
-    cmd[3] |= ((rf_freq >> 8) & 0xFF) as u8;
-    cmd[4] |= ((rf_freq >> 16) & 0xFF) as u8;
-    cmd[5] |= ((rf_freq >> 24) & 0xFF) as u8;
+    cmd[2] |= ((rf_freq >> 24) & 0xFF) as u8;
+    cmd[3] |= ((rf_freq >> 16) & 0xFF) as u8;
+    cmd[4] |= ((rf_freq >> 8) & 0xFF) as u8;
+    cmd[5] |= (rf_freq & 0xFF) as u8;
     cmd
 }
 
@@ -243,9 +243,9 @@ pub fn set_rx_adv_cmd(rx_timeout: u32) -> [u8; 5] {
     cmd[0] = 0x02;
     cmd[1] = 0x0C;
 
-    cmd[2] |= (rx_timeout & 0xFF) as u8;
+    cmd[2] |= ((rx_timeout >> 16) & 0xFF) as u8;
     cmd[3] |= ((rx_timeout >> 8) & 0xFF) as u8;
-    cmd[4] |= ((rx_timeout >> 16) & 0xFF) as u8;
+    cmd[4] |= (rx_timeout & 0xFF) as u8;
     cmd
 }
 
@@ -260,9 +260,9 @@ pub fn set_tx_adv_cmd(tx_timeout: u32) -> [u8; 5] {
     cmd[0] = 0x02;
     cmd[1] = 0x0D;
 
-    cmd[2] |= (tx_timeout & 0xFF) as u8;
+    cmd[2] |= ((tx_timeout >> 16) & 0xFF) as u8;
     cmd[3] |= ((tx_timeout >> 8) & 0xFF) as u8;
-    cmd[4] |= ((tx_timeout >> 16) & 0xFF) as u8;
+    cmd[4] |= (tx_timeout & 0xFF) as u8;
     cmd
 }
 
@@ -294,13 +294,13 @@ pub fn set_auto_rx_tx_cmd(clear: bool, auto_txrx_mode: AutoTxrxMode, timeout: u3
 
     if clear { cmd[2] |= 128; }
     cmd[2] |= (auto_txrx_mode as u8) & 0x3;
-    cmd[3] |= (timeout & 0xFF) as u8;
+    cmd[3] |= ((timeout >> 16) & 0xFF) as u8;
     cmd[4] |= ((timeout >> 8) & 0xFF) as u8;
-    cmd[5] |= ((timeout >> 16) & 0xFF) as u8;
-    cmd[6] |= (delay & 0xFF) as u8;
-    cmd[7] |= ((delay >> 8) & 0xFF) as u8;
-    cmd[8] |= ((delay >> 16) & 0xFF) as u8;
-    cmd[9] |= ((delay >> 24) & 0xFF) as u8;
+    cmd[5] |= (timeout & 0xFF) as u8;
+    cmd[6] |= ((delay >> 24) & 0xFF) as u8;
+    cmd[7] |= ((delay >> 16) & 0xFF) as u8;
+    cmd[8] |= ((delay >> 8) & 0xFF) as u8;
+    cmd[9] |= (delay & 0xFF) as u8;
     cmd
 }
 
@@ -325,12 +325,12 @@ pub fn set_default_rx_tx_timeout_cmd(rx_timeout: u32, tx_timeout: u32) -> [u8; 8
     cmd[0] = 0x02;
     cmd[1] = 0x15;
 
-    cmd[2] |= (rx_timeout & 0xFF) as u8;
+    cmd[2] |= ((rx_timeout >> 16) & 0xFF) as u8;
     cmd[3] |= ((rx_timeout >> 8) & 0xFF) as u8;
-    cmd[4] |= ((rx_timeout >> 16) & 0xFF) as u8;
-    cmd[5] |= (tx_timeout & 0xFF) as u8;
+    cmd[4] |= (rx_timeout & 0xFF) as u8;
+    cmd[5] |= ((tx_timeout >> 16) & 0xFF) as u8;
     cmd[6] |= ((tx_timeout >> 8) & 0xFF) as u8;
-    cmd[7] |= ((tx_timeout >> 16) & 0xFF) as u8;
+    cmd[7] |= (tx_timeout & 0xFF) as u8;
     cmd
 }
 
@@ -361,9 +361,9 @@ pub fn set_cca_cmd(duration: u32) -> [u8; 5] {
     cmd[0] = 0x02;
     cmd[1] = 0x18;
 
-    cmd[2] |= (duration & 0xFF) as u8;
+    cmd[2] |= ((duration >> 16) & 0xFF) as u8;
     cmd[3] |= ((duration >> 8) & 0xFF) as u8;
-    cmd[4] |= ((duration >> 16) & 0xFF) as u8;
+    cmd[4] |= (duration & 0xFF) as u8;
     cmd
 }
 
@@ -373,9 +373,9 @@ pub fn set_cca_adv_cmd(duration: u32, gain: u8) -> [u8; 6] {
     cmd[0] = 0x02;
     cmd[1] = 0x18;
 
-    cmd[2] |= (duration & 0xFF) as u8;
+    cmd[2] |= ((duration >> 16) & 0xFF) as u8;
     cmd[3] |= ((duration >> 8) & 0xFF) as u8;
-    cmd[4] |= ((duration >> 16) & 0xFF) as u8;
+    cmd[4] |= (duration & 0xFF) as u8;
     cmd[5] |= gain;
     cmd
 }
@@ -401,14 +401,14 @@ pub fn set_cad_params_cmd(cad_timeout: u32, threshold: u8, exit_mode: ExitMode, 
     cmd[0] = 0x02;
     cmd[1] = 0x1B;
 
-    cmd[2] |= (cad_timeout & 0xFF) as u8;
+    cmd[2] |= ((cad_timeout >> 16) & 0xFF) as u8;
     cmd[3] |= ((cad_timeout >> 8) & 0xFF) as u8;
-    cmd[4] |= ((cad_timeout >> 16) & 0xFF) as u8;
+    cmd[4] |= (cad_timeout & 0xFF) as u8;
     cmd[5] |= threshold;
     cmd[6] |= (exit_mode as u8) & 0x3;
-    cmd[7] |= (trx_timeout & 0xFF) as u8;
+    cmd[7] |= ((trx_timeout >> 16) & 0xFF) as u8;
     cmd[8] |= ((trx_timeout >> 8) & 0xFF) as u8;
-    cmd[9] |= ((trx_timeout >> 16) & 0xFF) as u8;
+    cmd[9] |= (trx_timeout & 0xFF) as u8;
     cmd
 }
 
@@ -421,9 +421,9 @@ pub fn set_cad_cmd() -> [u8; 2] {
 
 /// Response for GetPacketType command
 #[derive(Default)]
-pub struct GetPacketTypeRsp([u8; 3]);
+pub struct PacketTypeRsp([u8; 3]);
 
-impl GetPacketTypeRsp {
+impl PacketTypeRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -440,7 +440,7 @@ impl GetPacketTypeRsp {
     }
 }
 
-impl AsMut<[u8]> for GetPacketTypeRsp {
+impl AsMut<[u8]> for PacketTypeRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -448,9 +448,9 @@ impl AsMut<[u8]> for GetPacketTypeRsp {
 
 /// Response for GetRssiInst command
 #[derive(Default)]
-pub struct GetRssiInstRsp([u8; 4]);
+pub struct RssiInstRsp([u8; 4]);
 
-impl GetRssiInstRsp {
+impl RssiInstRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -468,7 +468,7 @@ impl GetRssiInstRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRssiInstRsp {
+impl AsMut<[u8]> for RssiInstRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -476,9 +476,9 @@ impl AsMut<[u8]> for GetRssiInstRsp {
 
 /// Response for GetRxPktLength command
 #[derive(Default)]
-pub struct GetRxPktLengthRsp([u8; 4]);
+pub struct RxPktLengthRsp([u8; 4]);
 
-impl GetRxPktLengthRsp {
+impl RxPktLengthRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -496,7 +496,7 @@ impl GetRxPktLengthRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRxPktLengthRsp {
+impl AsMut<[u8]> for RxPktLengthRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -504,9 +504,9 @@ impl AsMut<[u8]> for GetRxPktLengthRsp {
 
 /// Response for GetTimestampValue command
 #[derive(Default)]
-pub struct GetTimestampValueRsp([u8; 6]);
+pub struct TimestampValueRsp([u8; 6]);
 
-impl GetTimestampValueRsp {
+impl TimestampValueRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -526,7 +526,7 @@ impl GetTimestampValueRsp {
     }
 }
 
-impl AsMut<[u8]> for GetTimestampValueRsp {
+impl AsMut<[u8]> for TimestampValueRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -534,9 +534,9 @@ impl AsMut<[u8]> for GetTimestampValueRsp {
 
 /// Response for GetCcaResult command
 #[derive(Default)]
-pub struct GetCcaResultRsp([u8; 6]);
+pub struct CcaResultRsp([u8; 6]);
 
-impl GetCcaResultRsp {
+impl CcaResultRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -566,7 +566,7 @@ impl GetCcaResultRsp {
     }
 }
 
-impl AsMut<[u8]> for GetCcaResultRsp {
+impl AsMut<[u8]> for CcaResultRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

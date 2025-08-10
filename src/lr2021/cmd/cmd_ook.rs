@@ -90,10 +90,10 @@ pub fn set_ook_modulation_params_cmd(bitrate: u32, pulse_shape: PulseShape, rx_b
     cmd[0] = 0x02;
     cmd[1] = 0x81;
 
-    cmd[2] |= (bitrate & 0xFF) as u8;
-    cmd[3] |= ((bitrate >> 8) & 0xFF) as u8;
-    cmd[4] |= ((bitrate >> 16) & 0xFF) as u8;
-    cmd[5] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[2] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[3] |= ((bitrate >> 16) & 0xFF) as u8;
+    cmd[4] |= ((bitrate >> 8) & 0xFF) as u8;
+    cmd[5] |= (bitrate & 0xFF) as u8;
     cmd[6] |= (pulse_shape as u8) & 0xF;
     cmd[7] |= rx_bw as u8;
     cmd
@@ -105,10 +105,10 @@ pub fn set_ook_modulation_params_adv_cmd(bitrate: u32, pulse_shape: PulseShape, 
     cmd[0] = 0x02;
     cmd[1] = 0x81;
 
-    cmd[2] |= (bitrate & 0xFF) as u8;
-    cmd[3] |= ((bitrate >> 8) & 0xFF) as u8;
-    cmd[4] |= ((bitrate >> 16) & 0xFF) as u8;
-    cmd[5] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[2] |= ((bitrate >> 24) & 0xFF) as u8;
+    cmd[3] |= ((bitrate >> 16) & 0xFF) as u8;
+    cmd[4] |= ((bitrate >> 8) & 0xFF) as u8;
+    cmd[5] |= (bitrate & 0xFF) as u8;
     cmd[6] |= (pulse_shape as u8) & 0xF;
     cmd[7] |= rx_bw as u8;
     cmd[8] |= (depth as u8) & 0x1;
@@ -121,12 +121,12 @@ pub fn set_ook_packet_params_cmd(pre_len_tx: u16, addr_comp: AddrComp, pkt_forma
     cmd[0] = 0x02;
     cmd[1] = 0x82;
 
-    cmd[2] |= (pre_len_tx & 0xFF) as u8;
-    cmd[3] |= ((pre_len_tx >> 8) & 0xFF) as u8;
+    cmd[2] |= ((pre_len_tx >> 8) & 0xFF) as u8;
+    cmd[3] |= (pre_len_tx & 0xFF) as u8;
     cmd[4] |= ((addr_comp as u8) & 0x3) << 2;
     cmd[4] |= (pkt_format as u8) & 0x3;
-    cmd[5] |= (pld_len & 0xFF) as u8;
-    cmd[6] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[5] |= ((pld_len >> 8) & 0xFF) as u8;
+    cmd[6] |= (pld_len & 0xFF) as u8;
     cmd[7] |= ((crc as u8) & 0xF) << 4;
     cmd[7] |= (manchester as u8) & 0xF;
     cmd
@@ -138,14 +138,14 @@ pub fn set_ook_crc_params_cmd(polynom: u32, init: u32) -> [u8; 10] {
     cmd[0] = 0x02;
     cmd[1] = 0x83;
 
-    cmd[2] |= (polynom & 0xFF) as u8;
-    cmd[3] |= ((polynom >> 8) & 0xFF) as u8;
-    cmd[4] |= ((polynom >> 16) & 0xFF) as u8;
-    cmd[5] |= ((polynom >> 24) & 0xFF) as u8;
-    cmd[6] |= (init & 0xFF) as u8;
-    cmd[7] |= ((init >> 8) & 0xFF) as u8;
-    cmd[8] |= ((init >> 16) & 0xFF) as u8;
-    cmd[9] |= ((init >> 24) & 0xFF) as u8;
+    cmd[2] |= ((polynom >> 24) & 0xFF) as u8;
+    cmd[3] |= ((polynom >> 16) & 0xFF) as u8;
+    cmd[4] |= ((polynom >> 8) & 0xFF) as u8;
+    cmd[5] |= (polynom & 0xFF) as u8;
+    cmd[6] |= ((init >> 24) & 0xFF) as u8;
+    cmd[7] |= ((init >> 16) & 0xFF) as u8;
+    cmd[8] |= ((init >> 8) & 0xFF) as u8;
+    cmd[9] |= (init & 0xFF) as u8;
     cmd
 }
 
@@ -155,10 +155,10 @@ pub fn set_ook_sync_word_cmd(syncword: u32, bit_order: BitOrder, nb_bits: u8) ->
     cmd[0] = 0x02;
     cmd[1] = 0x84;
 
-    cmd[2] |= (syncword & 0xFF) as u8;
-    cmd[3] |= ((syncword >> 8) & 0xFF) as u8;
-    cmd[4] |= ((syncword >> 16) & 0xFF) as u8;
-    cmd[5] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[2] |= ((syncword >> 24) & 0xFF) as u8;
+    cmd[3] |= ((syncword >> 16) & 0xFF) as u8;
+    cmd[4] |= ((syncword >> 8) & 0xFF) as u8;
+    cmd[5] |= (syncword & 0xFF) as u8;
     cmd[6] |= ((bit_order as u8) & 0x1) << 7;
     cmd[6] |= nb_bits & 0x7F;
     cmd
@@ -186,8 +186,8 @@ pub fn set_ook_detector_cmd(preamble_pattern: u16, pattern_length: u8, pattern_n
     cmd[0] = 0x02;
     cmd[1] = 0x88;
 
-    cmd[2] |= (preamble_pattern & 0xFF) as u8;
-    cmd[3] |= ((preamble_pattern >> 8) & 0xFF) as u8;
+    cmd[2] |= ((preamble_pattern >> 8) & 0xFF) as u8;
+    cmd[3] |= (preamble_pattern & 0xFF) as u8;
     cmd[4] |= pattern_length & 0xF;
     cmd[5] |= pattern_num_repeats & 0x1F;
     if sw_is_raw { cmd[6] |= 32; }
@@ -203,10 +203,10 @@ pub fn set_ook_whitening_params_cmd(bit_idx: u8, polynom: u16, init: u16) -> [u8
     cmd[1] = 0x89;
 
     cmd[2] |= (bit_idx & 0xF) << 4;
-    cmd[2] |= (polynom & 0xFF) as u8;
-    cmd[3] |= ((polynom >> 4) & 0xFF) as u8;
-    cmd[4] |= (init & 0xFF) as u8;
-    cmd[5] |= ((init >> 4) & 0xFF) as u8;
+    cmd[2] |= ((polynom >> 8) & 0xFF) as u8;
+    cmd[3] |= (polynom & 0xFF) as u8;
+    cmd[4] |= ((init >> 8) & 0xFF) as u8;
+    cmd[5] |= (init & 0xFF) as u8;
     cmd
 }
 
@@ -214,9 +214,9 @@ pub fn set_ook_whitening_params_cmd(bit_idx: u8, polynom: u16, init: u16) -> [u8
 
 /// Response for GetOokPacketStatus command
 #[derive(Default)]
-pub struct GetOokPacketStatusRsp([u8; 8]);
+pub struct OokPacketStatusRsp([u8; 8]);
 
-impl GetOokPacketStatusRsp {
+impl OokPacketStatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -261,7 +261,7 @@ impl GetOokPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetOokPacketStatusRsp {
+impl AsMut<[u8]> for OokPacketStatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

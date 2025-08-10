@@ -30,10 +30,10 @@ pub fn set_ranging_addr_cmd(slave_addr: u32, check_length: u8) -> [u8; 7] {
     cmd[0] = 0x02;
     cmd[1] = 0x78;
 
-    cmd[2] |= (slave_addr & 0xFF) as u8;
-    cmd[3] |= ((slave_addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((slave_addr >> 16) & 0xFF) as u8;
-    cmd[5] |= ((slave_addr >> 24) & 0xFF) as u8;
+    cmd[2] |= ((slave_addr >> 24) & 0xFF) as u8;
+    cmd[3] |= ((slave_addr >> 16) & 0xFF) as u8;
+    cmd[4] |= ((slave_addr >> 8) & 0xFF) as u8;
+    cmd[5] |= (slave_addr & 0xFF) as u8;
     cmd[6] |= check_length & 0x7;
     cmd
 }
@@ -44,10 +44,10 @@ pub fn set_ranging_req_addr_cmd(req_addr: u32) -> [u8; 6] {
     cmd[0] = 0x02;
     cmd[1] = 0x79;
 
-    cmd[2] |= (req_addr & 0xFF) as u8;
-    cmd[3] |= ((req_addr >> 8) & 0xFF) as u8;
-    cmd[4] |= ((req_addr >> 16) & 0xFF) as u8;
-    cmd[5] |= ((req_addr >> 24) & 0xFF) as u8;
+    cmd[2] |= ((req_addr >> 24) & 0xFF) as u8;
+    cmd[3] |= ((req_addr >> 16) & 0xFF) as u8;
+    cmd[4] |= ((req_addr >> 8) & 0xFF) as u8;
+    cmd[5] |= (req_addr & 0xFF) as u8;
     cmd
 }
 
@@ -67,10 +67,10 @@ pub fn set_ranging_tx_rx_delay_cmd(delay: u32) -> [u8; 6] {
     cmd[0] = 0x02;
     cmd[1] = 0x7B;
 
-    cmd[2] |= (delay & 0xFF) as u8;
-    cmd[3] |= ((delay >> 8) & 0xFF) as u8;
-    cmd[4] |= ((delay >> 16) & 0xFF) as u8;
-    cmd[5] |= ((delay >> 24) & 0xFF) as u8;
+    cmd[2] |= ((delay >> 24) & 0xFF) as u8;
+    cmd[3] |= ((delay >> 16) & 0xFF) as u8;
+    cmd[4] |= ((delay >> 8) & 0xFF) as u8;
+    cmd[5] |= (delay & 0xFF) as u8;
     cmd
 }
 
@@ -95,9 +95,9 @@ pub fn get_ranging_stats_req() -> [u8; 2] {
 
 /// Response for GetRangingResult command
 #[derive(Default)]
-pub struct GetRangingResultRsp([u8; 6]);
+pub struct RangingResultRsp([u8; 6]);
 
-impl GetRangingResultRsp {
+impl RangingResultRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -121,7 +121,7 @@ impl GetRangingResultRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRangingResultRsp {
+impl AsMut<[u8]> for RangingResultRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -129,9 +129,9 @@ impl AsMut<[u8]> for GetRangingResultRsp {
 
 /// Response for GetRangingResult command
 #[derive(Default)]
-pub struct GetRangingResultRspAdv([u8; 10]);
+pub struct RangingResultRspAdv([u8; 10]);
 
-impl GetRangingResultRspAdv {
+impl RangingResultRspAdv {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -167,7 +167,7 @@ impl GetRangingResultRspAdv {
     }
 }
 
-impl AsMut<[u8]> for GetRangingResultRspAdv {
+impl AsMut<[u8]> for RangingResultRspAdv {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -175,9 +175,9 @@ impl AsMut<[u8]> for GetRangingResultRspAdv {
 
 /// Response for GetRangingStats command
 #[derive(Default)]
-pub struct GetRangingStatsRsp([u8; 12]);
+pub struct RangingStatsRsp([u8; 12]);
 
-impl GetRangingStatsRsp {
+impl RangingStatsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -219,7 +219,7 @@ impl GetRangingStatsRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRangingStatsRsp {
+impl AsMut<[u8]> for RangingStatsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

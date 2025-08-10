@@ -4,7 +4,7 @@ use crate::lr2021::status::{Status,Intr};
 
 /// DIO function selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Func {
+pub enum DioFunc {
     None = 0,
     Irq = 1,
     RfSwitch = 2,
@@ -160,13 +160,13 @@ pub fn clear_errors_cmd() -> [u8; 2] {
 }
 
 /// Configure the functionality of the freely configurable DIOs, as well as the pull-up/down configuration for sleep modes. On DIO5, only DIO_SLEEP_PULL_UP is accepted. DIO5/6 have pull-up by default
-pub fn set_dio_function_cmd(dio: u8, func: Func, pull_drive: PullDrive) -> [u8; 5] {
+pub fn set_dio_function_cmd(dio: u8, dio_func: DioFunc, pull_drive: PullDrive) -> [u8; 5] {
     let mut cmd = [0u8; 5];
     cmd[0] = 0x01;
     cmd[1] = 0x12;
 
     cmd[2] |= dio & 0xF;
-    cmd[3] |= ((func as u8) & 0xF) << 4;
+    cmd[3] |= ((dio_func as u8) & 0xF) << 4;
     cmd[3] |= (pull_drive as u8) & 0xF;
     cmd
 }
@@ -204,10 +204,10 @@ pub fn set_dio_irq_config_cmd(dio: u8, irqs: u32) -> [u8; 7] {
     cmd[1] = 0x15;
 
     cmd[2] |= dio & 0xF;
-    cmd[3] |= (irqs & 0xFF) as u8;
-    cmd[4] |= ((irqs >> 8) & 0xFF) as u8;
-    cmd[5] |= ((irqs >> 16) & 0xFF) as u8;
-    cmd[6] |= ((irqs >> 24) & 0xFF) as u8;
+    cmd[3] |= ((irqs >> 24) & 0xFF) as u8;
+    cmd[4] |= ((irqs >> 16) & 0xFF) as u8;
+    cmd[5] |= ((irqs >> 8) & 0xFF) as u8;
+    cmd[6] |= (irqs & 0xFF) as u8;
     cmd
 }
 
@@ -217,10 +217,10 @@ pub fn clear_irq_cmd(irqs: u32) -> [u8; 6] {
     cmd[0] = 0x01;
     cmd[1] = 0x16;
 
-    cmd[2] |= (irqs & 0xFF) as u8;
-    cmd[3] |= ((irqs >> 8) & 0xFF) as u8;
-    cmd[4] |= ((irqs >> 16) & 0xFF) as u8;
-    cmd[5] |= ((irqs >> 24) & 0xFF) as u8;
+    cmd[2] |= ((irqs >> 24) & 0xFF) as u8;
+    cmd[3] |= ((irqs >> 16) & 0xFF) as u8;
+    cmd[4] |= ((irqs >> 8) & 0xFF) as u8;
+    cmd[5] |= (irqs & 0xFF) as u8;
     cmd
 }
 
@@ -257,14 +257,14 @@ pub fn config_fifo_irq_cmd(rx_fifo_irq_enable: u8, tx_fifo_irq_enable: u8, rx_hi
 
     cmd[2] |= rx_fifo_irq_enable;
     cmd[3] |= tx_fifo_irq_enable;
-    cmd[4] |= (rx_high_threshold & 0xFF) as u8;
-    cmd[5] |= ((rx_high_threshold >> 8) & 0xFF) as u8;
-    cmd[6] |= (tx_low_threshold & 0xFF) as u8;
-    cmd[7] |= ((tx_low_threshold >> 8) & 0xFF) as u8;
-    cmd[8] |= (rx_low_threshold & 0xFF) as u8;
-    cmd[9] |= ((rx_low_threshold >> 8) & 0xFF) as u8;
-    cmd[10] |= (tx_high_threshold & 0xFF) as u8;
-    cmd[11] |= ((tx_high_threshold >> 8) & 0xFF) as u8;
+    cmd[4] |= ((rx_high_threshold >> 8) & 0xFF) as u8;
+    cmd[5] |= (rx_high_threshold & 0xFF) as u8;
+    cmd[6] |= ((tx_low_threshold >> 8) & 0xFF) as u8;
+    cmd[7] |= (tx_low_threshold & 0xFF) as u8;
+    cmd[8] |= ((rx_low_threshold >> 8) & 0xFF) as u8;
+    cmd[9] |= (rx_low_threshold & 0xFF) as u8;
+    cmd[10] |= ((tx_high_threshold >> 8) & 0xFF) as u8;
+    cmd[11] |= (tx_high_threshold & 0xFF) as u8;
     cmd
 }
 
@@ -342,12 +342,12 @@ pub fn calib_fe_cmd(freq1: u16, freq2: u16, freq3: u16) -> [u8; 8] {
     cmd[0] = 0x01;
     cmd[1] = 0x23;
 
-    cmd[2] |= (freq1 & 0xFF) as u8;
-    cmd[3] |= ((freq1 >> 8) & 0xFF) as u8;
-    cmd[4] |= (freq2 & 0xFF) as u8;
-    cmd[5] |= ((freq2 >> 8) & 0xFF) as u8;
-    cmd[6] |= (freq3 & 0xFF) as u8;
-    cmd[7] |= ((freq3 >> 8) & 0xFF) as u8;
+    cmd[2] |= ((freq1 >> 8) & 0xFF) as u8;
+    cmd[3] |= (freq1 & 0xFF) as u8;
+    cmd[4] |= ((freq2 >> 8) & 0xFF) as u8;
+    cmd[5] |= (freq2 & 0xFF) as u8;
+    cmd[6] |= ((freq3 >> 8) & 0xFF) as u8;
+    cmd[7] |= (freq3 & 0xFF) as u8;
     cmd
 }
 
@@ -389,6 +389,32 @@ pub fn get_random_number_adv_req(source: u8) -> [u8; 3] {
     cmd
 }
 
+/// Put device in sleep mode
+pub fn set_sleep_cmd(clk_32k_en: bool, ret_en: u8) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
+    cmd[0] = 0x01;
+    cmd[1] = 0x27;
+
+    if clk_32k_en { cmd[2] |= 1; }
+    cmd[2] |= (ret_en & 0xF) << 1;
+    cmd
+}
+
+/// Put device in sleep mode
+pub fn set_sleep_adv_cmd(clk_32k_en: bool, ret_en: u8, sleep_time: u32) -> [u8; 8] {
+    let mut cmd = [0u8; 8];
+    cmd[0] = 0x01;
+    cmd[1] = 0x27;
+
+    if clk_32k_en { cmd[2] |= 1; }
+    cmd[2] |= (ret_en & 0xF) << 1;
+    cmd[3] |= ((sleep_time >> 24) & 0xFF) as u8;
+    cmd[4] |= ((sleep_time >> 16) & 0xFF) as u8;
+    cmd[5] |= ((sleep_time >> 8) & 0xFF) as u8;
+    cmd[6] |= (sleep_time & 0xFF) as u8;
+    cmd
+}
+
 /// Put device in standby mode (XOSC or RC)
 pub fn set_standby_cmd(standby_mode: StandbyMode) -> [u8; 3] {
     let mut cmd = [0u8; 3];
@@ -411,9 +437,9 @@ pub fn set_additional_reg_to_retain_cmd(slot: u8, addr: u32) -> [u8; 6] {
     cmd[1] = 0x2A;
 
     cmd[2] |= slot & 0x1F;
-    cmd[3] |= (addr & 0xFF) as u8;
+    cmd[3] |= ((addr >> 16) & 0xFF) as u8;
     cmd[4] |= ((addr >> 8) & 0xFF) as u8;
-    cmd[5] |= ((addr >> 16) & 0xFF) as u8;
+    cmd[5] |= (addr & 0xFF) as u8;
     cmd
 }
 
@@ -473,10 +499,10 @@ pub fn set_ntc_params_cmd(ntc_r_ratio: u16, ntc_beta: u16, delay: u8) -> [u8; 7]
     cmd[0] = 0x01;
     cmd[1] = 0x33;
 
-    cmd[2] |= (ntc_r_ratio & 0xFF) as u8;
-    cmd[3] |= ((ntc_r_ratio >> 2) & 0xFF) as u8;
-    cmd[4] |= (ntc_beta & 0xFF) as u8;
-    cmd[5] |= ((ntc_beta >> 4) & 0xFF) as u8;
+    cmd[2] |= ((ntc_r_ratio >> 8) & 0xFF) as u8;
+    cmd[3] |= (ntc_r_ratio & 0xFF) as u8;
+    cmd[4] |= ((ntc_beta >> 8) & 0xFF) as u8;
+    cmd[5] |= (ntc_beta & 0xFF) as u8;
     cmd[6] |= delay;
     cmd
 }
@@ -485,9 +511,9 @@ pub fn set_ntc_params_cmd(ntc_r_ratio: u16, ntc_beta: u16, delay: u8) -> [u8; 7]
 
 /// Response for GetStatus command
 #[derive(Default)]
-pub struct GetStatusRsp([u8; 6]);
+pub struct StatusRsp([u8; 6]);
 
-impl GetStatusRsp {
+impl StatusRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -510,7 +536,7 @@ impl GetStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for GetStatusRsp {
+impl AsMut<[u8]> for StatusRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -518,9 +544,9 @@ impl AsMut<[u8]> for GetStatusRsp {
 
 /// Response for GetVersion command
 #[derive(Default)]
-pub struct GetVersionRsp([u8; 4]);
+pub struct VersionRsp([u8; 4]);
 
-impl GetVersionRsp {
+impl VersionRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -542,12 +568,12 @@ impl GetVersionRsp {
     }
 }
 
-impl AsMut<[u8]> for GetVersionRsp {
+impl AsMut<[u8]> for VersionRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
-impl defmt::Format for GetVersionRsp {
+impl defmt::Format for VersionRsp {
     fn format(&self, fmt: defmt::Formatter) {
         defmt::write!(fmt, "{:02x}.{:02x}", self.major(), self.minor());
     }
@@ -555,9 +581,9 @@ impl defmt::Format for GetVersionRsp {
 
 /// Response for GetErrors command
 #[derive(Default)]
-pub struct GetErrorsRsp([u8; 4]);
+pub struct ErrorsRsp([u8; 4]);
 
-impl GetErrorsRsp {
+impl ErrorsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -639,7 +665,7 @@ impl GetErrorsRsp {
     }
 }
 
-impl AsMut<[u8]> for GetErrorsRsp {
+impl AsMut<[u8]> for ErrorsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -647,9 +673,9 @@ impl AsMut<[u8]> for GetErrorsRsp {
 
 /// Response for GetAndClearIrq command
 #[derive(Default)]
-pub struct GetAndClearIrqRsp([u8; 6]);
+pub struct AndClearIrqRsp([u8; 6]);
 
-impl GetAndClearIrqRsp {
+impl AndClearIrqRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -669,7 +695,7 @@ impl GetAndClearIrqRsp {
     }
 }
 
-impl AsMut<[u8]> for GetAndClearIrqRsp {
+impl AsMut<[u8]> for AndClearIrqRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -677,9 +703,9 @@ impl AsMut<[u8]> for GetAndClearIrqRsp {
 
 /// Response for GetFifoIrqFlags command
 #[derive(Default)]
-pub struct GetFifoIrqFlagsRsp([u8; 4]);
+pub struct FifoIrqFlagsRsp([u8; 4]);
 
-impl GetFifoIrqFlagsRsp {
+impl FifoIrqFlagsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -701,7 +727,7 @@ impl GetFifoIrqFlagsRsp {
     }
 }
 
-impl AsMut<[u8]> for GetFifoIrqFlagsRsp {
+impl AsMut<[u8]> for FifoIrqFlagsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -709,9 +735,9 @@ impl AsMut<[u8]> for GetFifoIrqFlagsRsp {
 
 /// Response for GetRxFifoLevel command
 #[derive(Default)]
-pub struct GetRxFifoLevelRsp([u8; 4]);
+pub struct RxFifoLevelRsp([u8; 4]);
 
-impl GetRxFifoLevelRsp {
+impl RxFifoLevelRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -729,7 +755,7 @@ impl GetRxFifoLevelRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRxFifoLevelRsp {
+impl AsMut<[u8]> for RxFifoLevelRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -737,9 +763,9 @@ impl AsMut<[u8]> for GetRxFifoLevelRsp {
 
 /// Response for GetTxFifoLevel command
 #[derive(Default)]
-pub struct GetTxFifoLevelRsp([u8; 4]);
+pub struct TxFifoLevelRsp([u8; 4]);
 
-impl GetTxFifoLevelRsp {
+impl TxFifoLevelRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -757,7 +783,7 @@ impl GetTxFifoLevelRsp {
     }
 }
 
-impl AsMut<[u8]> for GetTxFifoLevelRsp {
+impl AsMut<[u8]> for TxFifoLevelRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -765,9 +791,9 @@ impl AsMut<[u8]> for GetTxFifoLevelRsp {
 
 /// Response for GetVBat command
 #[derive(Default)]
-pub struct GetVBatRsp([u8; 4]);
+pub struct VBatRsp([u8; 4]);
 
-impl GetVBatRsp {
+impl VBatRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -791,7 +817,7 @@ impl GetVBatRsp {
     }
 }
 
-impl AsMut<[u8]> for GetVBatRsp {
+impl AsMut<[u8]> for VBatRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -799,9 +825,9 @@ impl AsMut<[u8]> for GetVBatRsp {
 
 /// Response for GetTemp command
 #[derive(Default)]
-pub struct GetTempRsp([u8; 4]);
+pub struct TempRsp([u8; 4]);
 
-impl GetTempRsp {
+impl TempRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -813,18 +839,19 @@ impl GetTempRsp {
     }
 
     /// Temperature in degrees Celsius (format=1)
-    pub fn value(&self) -> i16 {
-        let raw = (self.0[2] as u16) << 5 | ((self.0[3] as u16) >> 3);
+    pub fn temp_celsius(&self) -> i16 {
+        let raw = ((self.0[3] >> 3) as u16) |
+            ((self.0[2] as u16) << 5);
         raw as i16 - if (self.0[2] & 0x80) != 0 {1<<13} else {0}
     }
 }
 
-impl AsMut<[u8]> for GetTempRsp {
+impl AsMut<[u8]> for TempRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
-impl defmt::Format for GetTempRsp {
+impl defmt::Format for TempRsp {
     fn format(&self, fmt: defmt::Formatter) {
         defmt::write!(fmt, "{}.{:02}", self.0[2] as i8, (self.0[3] as u16 * 100) >> 8);
     }
@@ -832,9 +859,9 @@ impl defmt::Format for GetTempRsp {
 
 /// Response for GetRandomNumber command
 #[derive(Default)]
-pub struct GetRandomNumberRsp([u8; 6]);
+pub struct RandomNumberRsp([u8; 6]);
 
-impl GetRandomNumberRsp {
+impl RandomNumberRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -854,7 +881,7 @@ impl GetRandomNumberRsp {
     }
 }
 
-impl AsMut<[u8]> for GetRandomNumberRsp {
+impl AsMut<[u8]> for RandomNumberRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
@@ -862,9 +889,9 @@ impl AsMut<[u8]> for GetRandomNumberRsp {
 
 /// Response for GetAndClearFifoIrqFlags command
 #[derive(Default)]
-pub struct GetAndClearFifoIrqFlagsRsp([u8; 4]);
+pub struct AndClearFifoIrqFlagsRsp([u8; 4]);
 
-impl GetAndClearFifoIrqFlagsRsp {
+impl AndClearFifoIrqFlagsRsp {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -886,7 +913,7 @@ impl GetAndClearFifoIrqFlagsRsp {
     }
 }
 
-impl AsMut<[u8]> for GetAndClearFifoIrqFlagsRsp {
+impl AsMut<[u8]> for AndClearFifoIrqFlagsRsp {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
