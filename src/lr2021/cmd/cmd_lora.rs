@@ -65,11 +65,11 @@ pub enum HeaderType {
     Implicit = 1,
 }
 
-/// Format selection for symbols parameter
+/// Format selection for symbols parameter: either an integer number of symbol or a floating point representation (exponent on 3 MSB bits with mantissa on 5 LSB bits) When Exponent = 0, mantissa is multiplied by 2, and for exponent different from from 0 it is multipplied by 2^(n+2) (TBC)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Format {
-    NumberOfSymbols = 0,
-    MantissaExponent = 1,
+pub enum TimeoutFormat {
+    Integer = 0,
+    Float = 1,
 }
 
 /// Action taken after CAD
@@ -117,13 +117,13 @@ pub fn set_lora_packet_params_cmd(pbl_len: u16, payload_len: u8, header_type: He
 }
 
 /// Configure LoRa modem to search for a detect for N symbols. N can be given as number, or as mantissa/exponent. SymbolNum 0x00 means no timeout
-pub fn set_lora_synch_timeout_cmd(symbols: u8, format: Format) -> [u8; 4] {
+pub fn set_lora_synch_timeout_cmd(symbols: u8, timeout_format: TimeoutFormat) -> [u8; 4] {
     let mut cmd = [0u8; 4];
     cmd[0] = 0x02;
     cmd[1] = 0x22;
 
     cmd[2] |= symbols;
-    cmd[3] |= (format as u8) & 0x1;
+    cmd[3] |= (timeout_format as u8) & 0x1;
     cmd
 }
 

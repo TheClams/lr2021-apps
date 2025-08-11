@@ -80,7 +80,7 @@ pub enum RampTimeRampDownUnit {
 
 /// Format of returned value
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Format {
+pub enum VbatFormat {
     Raw = 0,
     Millivolts = 1,
 }
@@ -352,12 +352,12 @@ pub fn calib_fe_cmd(freq1: u16, freq2: u16, freq3: u16) -> [u8; 8] {
 }
 
 /// Measure and return current VBAT value
-pub fn get_v_bat_req(format: Format, adc_res: AdcRes) -> [u8; 4] {
+pub fn get_v_bat_req(vbat_format: VbatFormat, adc_res: AdcRes) -> [u8; 4] {
     let mut cmd = [0u8; 4];
     cmd[0] = 0x01;
     cmd[1] = 0x24;
 
-    cmd[2] |= ((format as u8) & 0x1) << 3;
+    cmd[2] |= ((vbat_format as u8) & 0x1) << 3;
     cmd[2] |= (adc_res as u8) & 0x7;
     cmd
 }

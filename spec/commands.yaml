@@ -1750,16 +1750,17 @@ categories:
             - '7:0'
           description: Number of symbols for timeout (format dependent)
           optional: false
-        - name: format
+        - name: timeout_format
           bit_width: 1
           byte_positions:
           - - 3
             - '0'
-          description: Format selection for symbols parameter
+          description: "Format selection for symbols parameter: either an integer number of symbol or a floating point representation (exponent on 3 MSB bits with mantissa on 5 LSB bits)
+            When Exponent = 0, mantissa is multiplied by 2, and for exponent different from from 0 it is multipplied by 2^(n+2) (TBC)"
           optional: false
           enum:
-            NUMBER_OF_SYMBOLS: 0
-            MANTISSA_EXPONENT: 1
+            INTEGER: 0
+            FLOAT: 1
       SetLoraSyncword:
         opcode: 547
         description: 'Sets the LoRa syncword. Default value is 0x12. Examples: Public Network: 0x34, Private Network: 0x12'
@@ -3928,7 +3929,7 @@ categories:
         opcode: 292
         description: Measure and return current VBAT value
         parameters:
-        - name: format
+        - name: vbat_format
           bit_width: 1
           byte_positions:
           - - 2

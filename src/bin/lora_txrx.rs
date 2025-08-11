@@ -16,7 +16,7 @@ use embassy_stm32::{
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch};
 use embassy_time::Timer;
 use lr2021_apps::lr2021::cmd_common::{PacketType, RampTime, RxPath};
-use lr2021_apps::lr2021::cmd_lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf};
+use lr2021_apps::lr2021::lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf};
 use lr2021_apps::lr2021::status::{Intr, IRQ_MASK_RX_DONE};
 use {defmt_rtt as _, panic_probe as _};
 
