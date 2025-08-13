@@ -126,4 +126,19 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         self.cmd_wr(&clear_rx_fifo_cmd()).await
     }
 
+    /// Load a patch in ram
+    pub async fn load_pram(&mut self, patch: &[u8]) -> Result<(), Lr2021Error> {
+        let mut req = [0;128+3];
+        let mut addr = 0x801000;
+        for patch_block in patch.chunks(32) {
+            req[0] = ((addr>>16) & 0xFF) as u8;
+            req[1] = ((addr>> 8) & 0xFF) as u8;
+            req[2] = ( addr      & 0xFF) as u8;
+            req[3..patch_block.len()+3].copy_from_slice(&patch_block);
+            self.cmd_data([1,4], &mut req).await?;
+            addr += 128;
+        }
+        Ok(())
+    }
+
 }

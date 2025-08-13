@@ -1,10 +1,11 @@
 // Flrc commands API
 
 use crate::lr2021::status::Status;
+use super::PulseShape;
 
 /// Bitrate and bandwidth combination
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitrateBw {
+pub enum FlrcBitrate {
     Br2600 = 0,
     Br2080 = 1,
     Br1300 = 2,
@@ -17,32 +18,11 @@ pub enum BitrateBw {
 
 /// Coding rate selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Cr {
-    Cr1p2 = 0,
-    Cr3p4 = 1,
-    Cr1p0 = 2,
-    Cr2p3 = 3,
-}
-
-/// Pulse shaping filter (same values as for FSK)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PulseShape {
-    None = 0,
-    Custom = 1,
-    Bt0p3 = 4,
-    Bt0p5 = 5,
-    Bt0p7 = 6,
-    Bt1p0 = 7,
-    Bt2p0 = 2,
-    Rc0p3 = 8,
-    Rc0p5 = 9,
-    Rc0p7 = 10,
-    Rc1p0 = 11,
-    Rrc0p3 = 12,
-    Rrc0p4 = 3,
-    Rrc0p5 = 13,
-    Rrc0p7 = 14,
-    Rrc1p0 = 15,
+pub enum FlrcCr {
+    Cr12 = 0,
+    Cr34 = 1,
+    None = 2,
+    Cr23 = 3,
 }
 
 /// AGC preamble length
@@ -81,11 +61,11 @@ pub enum SyncMatch {
     MatchNone = 0,
     Match1 = 1,
     Match2 = 2,
-    Match1Or2 = 3,
+    Match12 = 3,
     Match3 = 4,
-    Match1Or3 = 5,
-    Match2Or3 = 6,
-    Match1Or2Or3 = 7,
+    Match13 = 5,
+    Match23 = 6,
+    Match123 = 7,
 }
 
 /// Packet format selection
@@ -105,20 +85,20 @@ pub enum Crc {
 }
 
 /// Sets the modulation parameters for FLRC packets. FW configures respective modem registers. Will return CMD_FAIL in the status of the next command, if the packet type is not FLRC
-pub fn set_flrc_modulation_params_cmd(bitrate_bw: BitrateBw, cr: Cr, pulse_shape: PulseShape) -> [u8; 5] {
-    let mut cmd = [0u8; 5];
+pub fn set_flrc_modulation_params_cmd(flrc_bitrate: FlrcBitrate, flrc_cr: FlrcCr, pulse_shape: PulseShape) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x02;
     cmd[1] = 0x48;
 
-    cmd[2] |= (bitrate_bw as u8) & 0x7;
-    cmd[3] |= ((cr as u8) & 0xF) << 4;
+    cmd[2] |= (flrc_bitrate as u8) & 0x7;
+    cmd[3] |= ((flrc_cr as u8) & 0xF) << 4;
     cmd[3] |= (pulse_shape as u8) & 0xF;
     cmd
 }
 
 /// Sets the packet parameters for FLRC packets. FW configures respective modem registers
-pub fn set_flrc_packet_params_cmd(agc_pbl_len: AgcPblLen, sync_len: SyncLen, sync_tx: SyncTx, sync_match: SyncMatch, pkt_format: PktFormat, crc: Crc, pld_len: u16) -> [u8; 10] {
-    let mut cmd = [0u8; 10];
+pub fn set_flrc_packet_params_cmd(agc_pbl_len: AgcPblLen, sync_len: SyncLen, sync_tx: SyncTx, sync_match: SyncMatch, pkt_format: PktFormat, crc: Crc, pld_len: u16) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x49;
 
@@ -131,6 +111,11 @@ pub fn set_flrc_packet_params_cmd(agc_pbl_len: AgcPblLen, sync_len: SyncLen, syn
     cmd[4] |= ((pld_len >> 8) & 0xFF) as u8;
     cmd[5] |= (pld_len & 0xFF) as u8;
     cmd
+}
+
+/// Gets the internal statistics of the received packets. Statistics are reset on a POR, sleep without memory retention and the command ResetRxStats
+pub fn get_flrc_rx_stats_req() -> [u8; 2] {
+    [0x02, 0x4A]
 }
 
 /// Gets the status of the last received packet. Status is updated at the end of a reception (RxDone irq), but rssi_sync is already updated on SyncWordValid irq
@@ -153,6 +138,98 @@ pub fn set_flrc_syncword_cmd(sw_num: u8, syncword: u32) -> [u8; 7] {
 }
 
 // Response structs
+
+/// Response for GetFlrcRxStats command
+#[derive(Default)]
+pub struct FlrcRxStatsRsp([u8; 8]);
+
+impl FlrcRxStatsRsp {
+    /// Create a new response buffer
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// Total number of received packets
+    pub fn pkt_rx(&self) -> u16 {
+        (self.0[3] as u16) |
+        ((self.0[2] as u16) << 8)
+    }
+
+    /// Number of received packets with a CRC error
+    pub fn crc_error(&self) -> u16 {
+        (self.0[5] as u16) |
+        ((self.0[4] as u16) << 8)
+    }
+
+    /// Number of packets with a length error
+    pub fn len_error(&self) -> u16 {
+        (self.0[7] as u16) |
+        ((self.0[6] as u16) << 8)
+    }
+}
+
+impl AsMut<[u8]> for FlrcRxStatsRsp {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Response for GetFlrcRxStats command
+#[derive(Default)]
+pub struct FlrcRxStatsRspAdv([u8; 12]);
+
+impl FlrcRxStatsRspAdv {
+    /// Create a new response buffer
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// Total number of received packets
+    pub fn pkt_rx(&self) -> u16 {
+        (self.0[3] as u16) |
+        ((self.0[2] as u16) << 8)
+    }
+
+    /// Number of received packets with a CRC error
+    pub fn crc_error(&self) -> u16 {
+        (self.0[5] as u16) |
+        ((self.0[4] as u16) << 8)
+    }
+
+    /// Number of packets with a length error
+    pub fn len_error(&self) -> u16 {
+        (self.0[7] as u16) |
+        ((self.0[6] as u16) << 8)
+    }
+
+    /// Number of received packets with a correct CRC
+    pub fn crc_ok(&self) -> u16 {
+        (self.0[9] as u16) |
+        ((self.0[8] as u16) << 8)
+    }
+
+    /// Number of false sync detected
+    pub fn false_sync(&self) -> u16 {
+        (self.0[11] as u16) |
+        ((self.0[10] as u16) << 8)
+    }
+}
+
+impl AsMut<[u8]> for FlrcRxStatsRspAdv {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
 
 /// Response for GetFlrcPacketStatus command
 #[derive(Default)]

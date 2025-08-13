@@ -42,8 +42,8 @@ pub fn set_ble_modulation_params_adv_cmd(ble_mode: BleMode, rx_bw: RxBw) -> [u8;
 }
 
 /// Sets the BLE channel/packet dependent parameters
-pub fn set_ble_channel_params_cmd(crc_in_fifo: bool, channel_type: ChannelType, whit_init: u8, crc_init: u32, syncword: u32) -> [u8; 12] {
-    let mut cmd = [0u8; 12];
+pub fn set_ble_channel_params_cmd(crc_in_fifo: bool, channel_type: ChannelType, whit_init: u8, crc_init: u32, syncword: u32) -> [u8; 11] {
+    let mut cmd = [0u8; 11];
     cmd[0] = 0x02;
     cmd[1] = 0x61;
 

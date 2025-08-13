@@ -89,8 +89,8 @@ pub enum Function {
 }
 
 /// Sets the LoRa modulation parameters. FW configures respective modem registers. Will return CMD_FAIL in the status of the next command, if the packet type is not LoRa
-pub fn set_lora_modulation_params_cmd(sf: Sf, lora_bw: LoraBw, lora_cr: LoraCr, ldro: Ldro) -> [u8; 6] {
-    let mut cmd = [0u8; 6];
+pub fn set_lora_modulation_params_cmd(sf: Sf, lora_bw: LoraBw, lora_cr: LoraCr, ldro: Ldro) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x02;
     cmd[1] = 0x20;
 
@@ -102,8 +102,8 @@ pub fn set_lora_modulation_params_cmd(sf: Sf, lora_bw: LoraBw, lora_cr: LoraCr, 
 }
 
 /// Sets the packet parameters for the LoRa packets. FW configures according modem registers
-pub fn set_lora_packet_params_cmd(pbl_len: u16, payload_len: u8, header_type: HeaderType, crc_en: bool, invert_iq: bool) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn set_lora_packet_params_cmd(pbl_len: u16, payload_len: u8, header_type: HeaderType, crc_en: bool, invert_iq: bool) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x21;
 
@@ -143,8 +143,8 @@ pub fn set_lora_side_det_config_cmd() -> [u8; 2] {
 }
 
 /// Configure the LoRa RX multi SF (side detectors) config. The multi-sf can listen to multiple SF in parallel and automatically switch to RX mode to demodulate the right SF. Calling SetLoraModulationParams will disable all side detectors
-pub fn set_lora_side_det_config_adv_cmd(sd1_sf: Sf, sd1_ldro: Ldro, sd1_inv: bool, sd2_sf: Sf, sd2_ldro: Ldro, sd2_inv: bool, sd3_sf: Sf, sd3_ldro: Ldro, sd3_inv: bool) -> [u8; 11] {
-    let mut cmd = [0u8; 11];
+pub fn set_lora_side_det_config_adv_cmd(sd1_sf: Sf, sd1_ldro: Ldro, sd1_inv: bool, sd2_sf: Sf, sd2_ldro: Ldro, sd2_inv: bool, sd3_sf: Sf, sd3_ldro: Ldro, sd3_inv: bool) -> [u8; 5] {
+    let mut cmd = [0u8; 5];
     cmd[0] = 0x02;
     cmd[1] = 0x24;
 
@@ -178,8 +178,8 @@ pub fn set_lora_side_det_syncword_adv_cmd(sd1_sw: u8, sd2_sw: u8, sd3_sw: u8) ->
 }
 
 /// Configures the LoRa phase modulation demodulation during preamble feature. If enabled, for TX the preamble will have a phase modulation overlayed to the LoRa modulation
-pub fn config_lora_preamble_modulation_cmd(pmod_en: bool, dram_ret: u8, wakeup_time: u16, min_sleep_time: u32) -> [u8; 9] {
-    let mut cmd = [0u8; 9];
+pub fn config_lora_preamble_modulation_cmd(pmod_en: bool, dram_ret: u8, wakeup_time: u16, min_sleep_time: u32) -> [u8; 8] {
+    let mut cmd = [0u8; 8];
     cmd[0] = 0x02;
     cmd[1] = 0x26;
 
@@ -194,8 +194,8 @@ pub fn config_lora_preamble_modulation_cmd(pmod_en: bool, dram_ret: u8, wakeup_t
 }
 
 /// Configures the LoRa phase modulation demodulation during preamble feature. If enabled, for TX the preamble will have a phase modulation overlayed to the LoRa modulation
-pub fn config_lora_preamble_modulation_adv_cmd(pmod_en: bool, dram_ret: u8, wakeup_time: u16, min_sleep_time: u32, err_thr: u8, min_sym: u8, detect_time_sym: u8, start_offset: u8, end_offset: u8) -> [u8; 14] {
-    let mut cmd = [0u8; 14];
+pub fn config_lora_preamble_modulation_adv_cmd(pmod_en: bool, dram_ret: u8, wakeup_time: u16, min_sleep_time: u32, err_thr: u8, min_sym: u8, detect_time_sym: u8, start_offset: u8, end_offset: u8) -> [u8; 12] {
+    let mut cmd = [0u8; 12];
     cmd[0] = 0x02;
     cmd[1] = 0x26;
 
@@ -215,8 +215,8 @@ pub fn config_lora_preamble_modulation_adv_cmd(pmod_en: bool, dram_ret: u8, wake
 }
 
 /// Configure LoRa CAD mode parameters. Sets up Channel Activity Detection which searches for presence of LoRa preamble symbols
-pub fn set_lora_cad_params_cmd(nb_symbols: u8, pbl_any: bool, pnr_delta: u8, exit_mode: ExitMode, timeout: u32, det_peak: u8) -> [u8; 10] {
-    let mut cmd = [0u8; 10];
+pub fn set_lora_cad_params_cmd(nb_symbols: u8, pbl_any: bool, pnr_delta: u8, exit_mode: ExitMode, timeout: u32, det_peak: u8) -> [u8; 9] {
+    let mut cmd = [0u8; 9];
     cmd[0] = 0x02;
     cmd[1] = 0x27;
 
@@ -247,8 +247,8 @@ pub fn get_lora_packet_status_req() -> [u8; 2] {
 }
 
 /// Sets the address for LoRa RX address filtering
-pub fn set_lora_address_cmd(addr_comp_len: u8, addr_comp_pos: u8, addr: u64) -> [u8; 12] {
-    let mut cmd = [0u8; 12];
+pub fn set_lora_address_cmd(addr_comp_len: u8, addr_comp_pos: u8, addr: u64) -> [u8; 11] {
+    let mut cmd = [0u8; 11];
     cmd[0] = 0x02;
     cmd[1] = 0x2B;
 
@@ -292,8 +292,8 @@ pub fn set_lora_side_det_syncword_extended_cmd(sd1_sw1: u8, sd1_sw2: u8, sd2_sw1
 }
 
 /// Configures the LoRa Tx synchronization using dio
-pub fn set_lora_tx_sync_cmd(function: Function, dio_num: u8) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_lora_tx_sync_cmd(function: Function, dio_num: u8) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x02;
     cmd[1] = 0x1D;
 
@@ -344,7 +344,7 @@ impl LoraRxStatsRsp {
     }
 
     /// Number of false synchronizations
-    pub fn false_synch(&self) -> u16 {
+    pub fn false_sync(&self) -> u16 {
         (self.0[11] as u16) |
         ((self.0[10] as u16) << 8)
     }

@@ -999,7 +999,7 @@ categories:
         description: Sets the modulation parameters for FLRC packets. FW configures respective modem registers. Will return
           CMD_FAIL in the status of the next command, if the packet type is not FLRC
         parameters:
-        - name: bitrate_bw
+        - name: flrc_bitrate
           bit_width: 3
           byte_positions:
           - - 2
@@ -1015,7 +1015,7 @@ categories:
             BR_0520: 5
             BR_0325: 6
             BR_0260: 7
-        - name: cr
+        - name: flrc_cr
           bit_width: 4
           byte_positions:
           - - 3
@@ -1023,10 +1023,10 @@ categories:
           description: Coding rate selection
           optional: false
           enum:
-            CR_1_2: 0
-            CR_3_4: 1
-            CR_1_0: 2
-            CR_2_3: 3
+            CR_12: 0
+            CR_34: 1
+            NONE: 2
+            CR_23: 3
         - name: pulse_shape
           bit_width: 4
           byte_positions:
@@ -1105,11 +1105,11 @@ categories:
             MATCH_NONE: 0
             MATCH_1: 1
             MATCH_2: 2
-            MATCH_1_OR_2: 3
+            MATCH_12: 3
             MATCH_3: 4
-            MATCH_1_OR_3: 5
-            MATCH_2_OR_3: 6
-            MATCH_1_OR_2_OR_3: 7
+            MATCH_13: 5
+            MATCH_23: 6
+            MATCH_123: 7
         - name: pkt_format
           bit_width: 1
           byte_positions:
@@ -1142,6 +1142,60 @@ categories:
           description: Payload length. Valid values are [6..511]. Note that on the sx1280, valid values are only [6..127].
             In Dynamic pkt_format, the device will output a LenError IRQ, but remain in RX mode
           optional: false
+      GetFlrcRxStats:
+        opcode: 586
+        description: Gets the internal statistics of the received packets. Statistics are reset on a POR, sleep without memory
+          retention and the command ResetRxStats
+        parameters: []
+        status_fields:
+        - name: pkt_rx
+          bit_width: 16
+          byte_positions:
+          - - 2
+            - '7:0'
+          - - 3
+            - '7:0'
+          description: Total number of received packets
+          optional: false
+          internal: false
+        - name: crc_error
+          bit_width: 16
+          byte_positions:
+          - - 4
+            - '7:0'
+          - - 5
+            - '7:0'
+          description: Number of received packets with a CRC error
+          optional: false
+          internal: false
+        - name: len_error
+          bit_width: 16
+          byte_positions:
+          - - 6
+            - '7:0'
+          - - 7
+            - '7:0'
+          description: Number of packets with a length error
+          optional: false
+          internal: false
+        - name: crc_ok
+          bit_width: 16
+          byte_positions:
+          - - 8
+            - '7:0'
+          - - 9
+            - '7:0'
+          description: Number of received packets with a correct CRC
+          optional: true
+        - name: false_sync
+          bit_width: 16
+          byte_positions:
+          - - 10
+            - '7:0'
+          - - 11
+            - '7:0'
+          description: Number of false sync detected
+          optional: true
       GetFlrcPacketStatus:
         opcode: 587
         description: Gets the status of the last received packet. Status is updated at the end of a reception (RxDone irq),
@@ -1390,6 +1444,13 @@ categories:
             LEN_16_BITS: 16
             LEN_24_BITS: 24
             LEN_32_BITS: 32
+        - name: pbl_long
+          bit_width: 1
+          byte_positions:
+          - - 5
+            - '4'
+          description: Enable long preamble mode (more than 2kb)
+          optional: false
         - name: pld_len_unit
           bit_width: 1
           byte_positions:
@@ -2079,7 +2140,7 @@ categories:
           byte_positions:
           - - 3
             - '3:0'
-          description: Peak to noise ratio delta
+          description: Peak to noise ratio delta. Set to 8 for fast CAD reducing CAD time when there is no activity to detect.
           optional: false
         - name: exit_mode
           bit_width: 8
@@ -2108,7 +2169,7 @@ categories:
           byte_positions:
           - - 8
             - '7:0'
-          description: Detection peak threshold. Ratio between peak value and average, given in 3.4b fixed point format
+          description: Detection peak threshold. Ratio between peak value and average, given in 3.4b fixed point format. Typical value are between 50 to 70.
           optional: false
       SetLoraCad:
         opcode: 552
@@ -2157,7 +2218,7 @@ categories:
             - '7:0'
           description: Number of preamble detection
           optional: false
-        - name: false_synch
+        - name: false_sync
           bit_width: 16
           byte_positions:
           - - 10
@@ -2686,13 +2747,11 @@ categories:
           byte_positions:
           - - 4
             - '1:0'
-          description: Packet format (same as FSK)
+          description: Packet format
           optional: false
           enum:
             FIXED_LENGTH: 0
             VARIABLE_8BIT: 1
-            VARIABLE_9BIT: 2
-            VARIABLE_16BIT: 3
         - name: pld_len
           bit_width: 16
           byte_positions:
@@ -3255,7 +3314,7 @@ categories:
         opcode: 260
         description: Writes a block of 32-bit words in register/memory space starting at a specific address. The address is
           auto-incremented after each data word so that data is stored in contiguous register/memory locations. Address must
-          be 32-bit aligned and data length must be a multiple of 4. Maximum 64 words
+          be 32-bit aligned and data length must be a multiple of 4. Maximum 32 words
         parameters:
         - name: addr
           bit_width: 24
@@ -4777,6 +4836,7 @@ categories:
           description: The data rate to be used for the RX and the TX
           optional: false
           enum:
+            LR1: 0
             R1: 1
             R2: 2
             R3: 3
@@ -5051,7 +5111,7 @@ categories:
           byte_positions:
           - - 2
             - '3'
-          description: CCA assessment for channel 4. 0=no CCA assessment, 1=CCA assessment
+          description: CCA assessment for channel 4. 0=no CCA assessment (recommended), 1=CCA assessment
           optional: false
         - name: det3
           bit_width: 1

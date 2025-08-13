@@ -200,14 +200,15 @@ pub fn set_fsk_modulation_params_cmd(bitrate: u32, pulse_shape: PulseShape, rx_b
 }
 
 /// Sets the packet parameters for FSK packets.. Command will fail if packet type is not FSK
-pub fn set_fsk_packet_params_cmd(pbl_len_tx: u16, pbl_len_detect: PblLenDetect, pld_len_unit: PldLenUnit, addr_comp: AddrComp, fsk_pkt_format: FskPktFormat, pld_len: u16, crc: Crc, dc_free: u8) -> [u8; 12] {
-    let mut cmd = [0u8; 12];
+pub fn set_fsk_packet_params_cmd(pbl_len_tx: u16, pbl_len_detect: PblLenDetect, pbl_long: bool, pld_len_unit: PldLenUnit, addr_comp: AddrComp, fsk_pkt_format: FskPktFormat, pld_len: u16, crc: Crc, dc_free: u8) -> [u8; 9] {
+    let mut cmd = [0u8; 9];
     cmd[0] = 0x02;
     cmd[1] = 0x41;
 
     cmd[2] |= ((pbl_len_tx >> 8) & 0xFF) as u8;
     cmd[3] |= (pbl_len_tx & 0xFF) as u8;
     cmd[4] |= pbl_len_detect as u8;
+    if pbl_long { cmd[5] |= 16; }
     cmd[5] |= ((pld_len_unit as u8) & 0x1) << 4;
     cmd[5] |= ((addr_comp as u8) & 0x3) << 2;
     cmd[5] |= (fsk_pkt_format as u8) & 0x3;
@@ -219,8 +220,8 @@ pub fn set_fsk_packet_params_cmd(pbl_len_tx: u16, pbl_len_detect: PblLenDetect, 
 }
 
 /// Configure the whitening params for FSK packets, SX126x/LR11xx or SX128x compatible
-pub fn set_fsk_whitening_params_cmd(whiten_type: WhitenType, init: u16) -> [u8; 5] {
-    let mut cmd = [0u8; 5];
+pub fn set_fsk_whitening_params_cmd(whiten_type: WhitenType, init: u16) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x02;
     cmd[1] = 0x42;
 
@@ -248,8 +249,8 @@ pub fn set_fsk_crc_params_cmd(polynom: u32, init: u32) -> [u8; 10] {
 }
 
 /// Configure the syncword for FSK packets
-pub fn set_fsk_sync_word_cmd(syncword: u64, bit_order: BitOrder, nb_bits: u8) -> [u8; 12] {
-    let mut cmd = [0u8; 12];
+pub fn set_fsk_sync_word_cmd(syncword: u64, bit_order: BitOrder, nb_bits: u8) -> [u8; 11] {
+    let mut cmd = [0u8; 11];
     cmd[0] = 0x02;
     cmd[1] = 0x44;
 

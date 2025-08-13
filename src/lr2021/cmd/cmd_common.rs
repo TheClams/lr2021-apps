@@ -150,8 +150,8 @@ pub fn set_rx_path_adv_cmd(rx_path: RxPath, rx_boost: u8) -> [u8; 4] {
 }
 
 /// Chooses which PA to use and sets the parameters of the PA
-pub fn set_pa_config_cmd(pa_sel: PaSel, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: u8, pa_lf_slices: u8) -> [u8; 6] {
-    let mut cmd = [0u8; 6];
+pub fn set_pa_config_cmd(pa_sel: PaSel, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: u8, pa_lf_slices: u8) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x02;
     cmd[1] = 0x02;
 
@@ -163,8 +163,8 @@ pub fn set_pa_config_cmd(pa_sel: PaSel, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: 
 }
 
 /// Chooses which PA to use and sets the parameters of the PA
-pub fn set_pa_config_adv_cmd(pa_sel: PaSel, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: u8, pa_lf_slices: u8, pa_hf_duty_cycle: u8) -> [u8; 7] {
-    let mut cmd = [0u8; 7];
+pub fn set_pa_config_adv_cmd(pa_sel: PaSel, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: u8, pa_lf_slices: u8, pa_hf_duty_cycle: u8) -> [u8; 5] {
+    let mut cmd = [0u8; 5];
     cmd[0] = 0x02;
     cmd[1] = 0x02;
 
@@ -287,8 +287,8 @@ pub fn sel_pa_cmd(pa_sel: PaSel) -> [u8; 3] {
 }
 
 /// Activate or deactivate the auto TX/auto RX mode. In auto RX mode, chip automatically goes from TX to RX after TxDone. In auto TX mode, chip automatically goes from RX to TX after RxDone
-pub fn set_auto_rx_tx_cmd(clear: bool, auto_txrx_mode: AutoTxrxMode, timeout: u32, delay: u32) -> [u8; 11] {
-    let mut cmd = [0u8; 11];
+pub fn set_auto_rx_tx_cmd(clear: bool, auto_txrx_mode: AutoTxrxMode, timeout: u32, delay: u32) -> [u8; 10] {
+    let mut cmd = [0u8; 10];
     cmd[0] = 0x02;
     cmd[1] = 0x11;
 
@@ -335,8 +335,8 @@ pub fn set_default_rx_tx_timeout_cmd(rx_timeout: u32, tx_timeout: u32) -> [u8; 8
 }
 
 /// Sets the source event for time-stamping different radio events. 3 sources can be configured in parallel
-pub fn set_timestamp_source_cmd(index: u8, source: Source) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_timestamp_source_cmd(index: u8, source: Source) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x02;
     cmd[1] = 0x16;
 

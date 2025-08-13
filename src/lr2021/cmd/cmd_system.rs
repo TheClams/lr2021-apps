@@ -160,8 +160,8 @@ pub fn clear_errors_cmd() -> [u8; 2] {
 }
 
 /// Configure the functionality of the freely configurable DIOs, as well as the pull-up/down configuration for sleep modes. On DIO5, only DIO_SLEEP_PULL_UP is accepted. DIO5/6 have pull-up by default
-pub fn set_dio_function_cmd(dio: u8, dio_func: DioFunc, pull_drive: PullDrive) -> [u8; 5] {
-    let mut cmd = [0u8; 5];
+pub fn set_dio_function_cmd(dio: u8, dio_func: DioFunc, pull_drive: PullDrive) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x01;
     cmd[1] = 0x12;
 
@@ -172,8 +172,8 @@ pub fn set_dio_function_cmd(dio: u8, dio_func: DioFunc, pull_drive: PullDrive) -
 }
 
 /// Configure the value of the specified DIO pin when configured as RF switch with the SetDioFunction command
-pub fn set_dio_rf_switch_config_cmd(dio: u8, tx_hf: bool, rx_hf: bool, tx_lf: bool, rx_lf: bool, standby: bool) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn set_dio_rf_switch_config_cmd(dio: u8, tx_hf: bool, rx_hf: bool, tx_lf: bool, rx_lf: bool, standby: bool) -> [u8; 4] {
+    let mut cmd = [0u8; 4];
     cmd[0] = 0x01;
     cmd[1] = 0x13;
 
@@ -304,8 +304,8 @@ pub fn set_reg_mode_cmd(simo_usage: SimoUsage) -> [u8; 3] {
 }
 
 /// Configures the SIMO mode and ramp times
-pub fn set_reg_mode_adv_cmd(simo_usage: SimoUsage, ramp_time_rc2ru_unit: RampTimeRc2ruUnit, ramp_time_rc2ru: u8, ramp_time_tx2ru_unit: RampTimeTx2ruUnit, ramp_time_tx2ru: u8, ramp_time_ru2rc_unit: RampTimeRu2rcUnit, ramp_time_ru2rc: u8, ramp_time_ramp_down_unit: RampTimeRampDownUnit, ramp_time_ramp_down: u8) -> [u8; 11] {
-    let mut cmd = [0u8; 11];
+pub fn set_reg_mode_adv_cmd(simo_usage: SimoUsage, ramp_time_rc2ru_unit: RampTimeRc2ruUnit, ramp_time_rc2ru: u8, ramp_time_tx2ru_unit: RampTimeTx2ruUnit, ramp_time_tx2ru: u8, ramp_time_ru2rc_unit: RampTimeRu2rcUnit, ramp_time_ru2rc: u8, ramp_time_ramp_down_unit: RampTimeRampDownUnit, ramp_time_ramp_down: u8) -> [u8; 7] {
+    let mut cmd = [0u8; 7];
     cmd[0] = 0x01;
     cmd[1] = 0x21;
 
@@ -322,8 +322,8 @@ pub fn set_reg_mode_adv_cmd(simo_usage: SimoUsage, ramp_time_rc2ru_unit: RampTim
 }
 
 /// Calibrates the requested blocks defined by the blocks_to_calibrate parameter. Will work in any mode of the chip. On exit the chip will be in Standby RC
-pub fn calibrate_cmd(pa_offset: bool, meas_unit: bool, aaf: bool, pll: bool, hf_rc: bool, lf_rc: bool) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn calibrate_cmd(pa_offset: bool, meas_unit: bool, aaf: bool, pll: bool, hf_rc: bool, lf_rc: bool) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x22;
 
@@ -352,8 +352,8 @@ pub fn calib_fe_cmd(freq1: u16, freq2: u16, freq3: u16) -> [u8; 8] {
 }
 
 /// Measure and return current VBAT value
-pub fn get_v_bat_req(vbat_format: VbatFormat, adc_res: AdcRes) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn get_v_bat_req(vbat_format: VbatFormat, adc_res: AdcRes) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x24;
 
@@ -363,8 +363,8 @@ pub fn get_v_bat_req(vbat_format: VbatFormat, adc_res: AdcRes) -> [u8; 4] {
 }
 
 /// Measure and return temperature value
-pub fn get_temp_req(temp_src: TempSrc, adc_res: AdcRes) -> [u8; 5] {
-    let mut cmd = [0u8; 5];
+pub fn get_temp_req(temp_src: TempSrc, adc_res: AdcRes) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x25;
 
@@ -390,8 +390,8 @@ pub fn get_random_number_adv_req(source: u8) -> [u8; 3] {
 }
 
 /// Put device in sleep mode
-pub fn set_sleep_cmd(clk_32k_en: bool, ret_en: u8) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_sleep_cmd(clk_32k_en: bool, ret_en: u8) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x27;
 
@@ -401,8 +401,8 @@ pub fn set_sleep_cmd(clk_32k_en: bool, ret_en: u8) -> [u8; 4] {
 }
 
 /// Put device in sleep mode
-pub fn set_sleep_adv_cmd(clk_32k_en: bool, ret_en: u8, sleep_time: u32) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn set_sleep_adv_cmd(clk_32k_en: bool, ret_en: u8, sleep_time: u32) -> [u8; 7] {
+    let mut cmd = [0u8; 7];
     cmd[0] = 0x01;
     cmd[1] = 0x27;
 
@@ -449,8 +449,8 @@ pub fn get_and_clear_fifo_irq_flags_req() -> [u8; 2] {
 }
 
 /// Enable/disable end of life detection and setup trigger voltage
-pub fn set_eol_config_cmd(trim: Trim, enable: bool) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_eol_config_cmd(trim: Trim, enable: bool) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x30;
 
@@ -483,8 +483,8 @@ pub fn set_xosc_cp_trim_adv_cmd(xta: u8, xtb: u8, delay_us: u8) -> [u8; 5] {
 }
 
 /// Configure temperature compensation mode for TX and RX
-pub fn set_temp_comp_cfg_cmd(ntc: Ntc, comp_mode: CompMode) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_temp_comp_cfg_cmd(ntc: Ntc, comp_mode: CompMode) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x01;
     cmd[1] = 0x32;
 

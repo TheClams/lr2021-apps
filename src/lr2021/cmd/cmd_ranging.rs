@@ -75,8 +75,8 @@ pub fn set_ranging_tx_rx_delay_cmd(delay: u32) -> [u8; 6] {
 }
 
 /// Sets the ranging specific parameters
-pub fn set_ranging_params_cmd(extended_mode: ExtendedMode, spy_mode: SpyMode, nb_symbols: u8) -> [u8; 5] {
-    let mut cmd = [0u8; 5];
+pub fn set_ranging_params_cmd(extended_mode: ExtendedMode, spy_mode: SpyMode, nb_symbols: u8) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x02;
     cmd[1] = 0x7C;
 

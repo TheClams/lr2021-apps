@@ -64,8 +64,8 @@ pub fn set_wisun_mode_cmd(wisun_mode: WisunMode, rx_bw: u8) -> [u8; 4] {
 }
 
 /// Configure the wisun packet parameters
-pub fn set_wisun_packet_params_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: CrcOn, mode_switch_tx: ModeSwitchTx, fec_tx: FecTx, frame_len_tx: u16, pbl_len_tx: u8) -> [u8; 10] {
-    let mut cmd = [0u8; 10];
+pub fn set_wisun_packet_params_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: CrcOn, mode_switch_tx: ModeSwitchTx, fec_tx: FecTx, frame_len_tx: u16, pbl_len_tx: u8) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x71;
 
@@ -81,8 +81,8 @@ pub fn set_wisun_packet_params_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: 
 }
 
 /// Configure the wisun packet parameters
-pub fn set_wisun_packet_params_adv_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: CrcOn, mode_switch_tx: ModeSwitchTx, fec_tx: FecTx, frame_len_tx: u16, pbl_len_tx: u8, pbl_detect: u8) -> [u8; 11] {
-    let mut cmd = [0u8; 11];
+pub fn set_wisun_packet_params_adv_cmd(fcs_tx: FcsTx, whitening: Whitening, crc_on: CrcOn, mode_switch_tx: ModeSwitchTx, fec_tx: FecTx, frame_len_tx: u16, pbl_len_tx: u8, pbl_detect: u8) -> [u8; 7] {
+    let mut cmd = [0u8; 7];
     cmd[0] = 0x02;
     cmd[1] = 0x71;
 

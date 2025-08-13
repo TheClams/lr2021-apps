@@ -52,8 +52,8 @@ pub fn set_raw_iq_tx_params_cmd(tx_sample_num: u16, tx_sample_rate: u32, tx_mode
 }
 
 /// Sets the raw IQ capture trigger parameters
-pub fn set_raw_iq_trigger_cmd(trigger_start: TriggerStart, trigger_stop: TriggerStop) -> [u8; 4] {
-    let mut cmd = [0u8; 4];
+pub fn set_raw_iq_trigger_cmd(trigger_start: TriggerStart, trigger_stop: TriggerStop) -> [u8; 3] {
+    let mut cmd = [0u8; 3];
     cmd[0] = 0x02;
     cmd[1] = 0x94;
 
@@ -63,8 +63,8 @@ pub fn set_raw_iq_trigger_cmd(trigger_start: TriggerStart, trigger_stop: Trigger
 }
 
 /// Sets the raw IQ capture trigger parameters
-pub fn set_raw_iq_trigger_adv_cmd(trigger_start: TriggerStart, trigger_stop: TriggerStop, rssi_up: u16, rssi_down: u16) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn set_raw_iq_trigger_adv_cmd(trigger_start: TriggerStart, trigger_stop: TriggerStop, rssi_up: u16, rssi_down: u16) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x94;
 

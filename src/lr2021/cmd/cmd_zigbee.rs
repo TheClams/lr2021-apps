@@ -28,8 +28,8 @@ pub enum FcsMode {
 }
 
 /// Sets the parameters for Zigbee packets
-pub fn set_zigbee_params_cmd(zigbee_mode: ZigbeeMode, rx_bw: RxBw, pld_len: u8, pbl_len_tx: u16, address_on: AddressOn, fcs_mode: FcsMode) -> [u8; 9] {
-    let mut cmd = [0u8; 9];
+pub fn set_zigbee_params_cmd(zigbee_mode: ZigbeeMode, rx_bw: RxBw, pld_len: u8, pbl_len_tx: u16, address_on: AddressOn, fcs_mode: FcsMode) -> [u8; 8] {
+    let mut cmd = [0u8; 8];
     cmd[0] = 0x02;
     cmd[1] = 0x9F;
 

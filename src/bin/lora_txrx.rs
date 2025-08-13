@@ -215,7 +215,7 @@ async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
         stats.pkt_rx(),
         stats.crc_error(),
         stats.header_error(),
-        stats.false_synch(),
+        stats.false_sync(),
     );
 }
 

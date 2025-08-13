@@ -192,7 +192,7 @@ def gen_enum(field: Field) -> str:
         lines.append("}")
     return '\n'.join(lines)
 
-def rsp_len(fields: list[Field]) -> int:
+def size_of(fields: list[Field]) -> int:
     if not fields:
         return 2  # Just status bytes
     
@@ -233,16 +233,14 @@ def gen_req(cmd: Command, _category: str, advanced: bool = False) -> str:
         param_type = get_rust_type(param)
         param_list.append(f"{param.name}: {param_type}")
     
-    # Calculate total request size
-    opcode_size = 2
-    param_size = sum((p.bit_width + 7) // 8 for p in params if p.bit_width > 0)
-    total_size = opcode_size + param_size
+    # Calculate buffer size
+    buffer_size = size_of(params)
     
     lines = [f"/// {cmd.description}"]
     if param_list:
-        lines.append(f"pub fn {func_name}({', '.join(param_list)}) -> [u8; {total_size}] {{")
+        lines.append(f"pub fn {func_name}({', '.join(param_list)}) -> [u8; {buffer_size}] {{")
     else:
-        lines.append(f"pub fn {func_name}() -> [u8; {total_size}] {{")
+        lines.append(f"pub fn {func_name}() -> [u8; {buffer_size}] {{")
     
     # Generate opcode bytes
     opcode_msb = (cmd.opcode >> 8) & 0xFF
@@ -252,7 +250,7 @@ def gen_req(cmd: Command, _category: str, advanced: bool = False) -> str:
         lines.append(f"    [0x{opcode_msb:02X}, 0x{opcode_lsb:02X}]")
     else:
         # Generate parameter packing code
-        lines.append("    let mut cmd = [0u8; {}];".format(total_size))
+        lines.append("    let mut cmd = [0u8; {}];".format(buffer_size))
         lines.append(f"    cmd[0] = 0x{opcode_msb:02X};")
         lines.append(f"    cmd[1] = 0x{opcode_lsb:02X};")
         lines.append("")
@@ -316,7 +314,7 @@ def gen_rsp(cmd: Command, _category: str, advanced: bool = False) -> str:
     else:
         fields = [f for f in cmd.status_fields if not f.optional]
     
-    buffer_size = rsp_len(fields)
+    buffer_size = size_of(fields)
     
     lines = [f"/// Response for {cmd.name} command"]
     lines.append("#[derive(Default)]")
@@ -465,6 +463,8 @@ def gen_file(category: str, commands: list[Command], output_dir: Path) -> None:
         lines.append("use crate::lr2021::status::Status;")
     if category in ['ble', 'ook', 'zigbee', 'zwave']:
         lines.append("use super::RxBw;")
+    if category in ['flrc', 'bpsk', 'ook']:
+        lines.append("use super::PulseShape;")
     
     # Collect all enums first
     enum_kind : dict[str,list[str]] = {}
@@ -481,7 +481,7 @@ def gen_file(category: str, commands: list[Command], output_dir: Path) -> None:
         for param in cmd.parameters:
             if param.enum:
                 n = snake_to_pascal(param.name)
-                if n in enum_remap.keys() or (n=='RxBw' and category!='fsk') or n=='TempFormat':
+                if n in enum_remap.keys() or (n in ['RxBw', 'PulseShape'] and category!='fsk') or n=='TempFormat':
                     continue
                 if n in enum_kind.keys():
                     if list(param.enum.keys()) != enum_kind[n]:

@@ -6,6 +6,7 @@ use super::RxBw;
 /// The data rate to be used for the RX and the TX
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ZwaveMode {
+    Lr1 = 0,
     R1 = 1,
     R2 = 2,
     R3 = 3,
@@ -78,8 +79,8 @@ pub fn get_zwave_packet_status_req() -> [u8; 2] {
 }
 
 /// Settings for filtering incoming beam frames in Rx
-pub fn set_zwave_beam_filtering_cmd(beam_tag: u8, addr_len: AddrLen, node_id: u16, id_hash: u8) -> [u8; 7] {
-    let mut cmd = [0u8; 7];
+pub fn set_zwave_beam_filtering_cmd(beam_tag: u8, addr_len: AddrLen, node_id: u16, id_hash: u8) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x9B;
 
@@ -92,8 +93,8 @@ pub fn set_zwave_beam_filtering_cmd(beam_tag: u8, addr_len: AddrLen, node_id: u1
 }
 
 /// Configure the Z-Wave scan mode. The user can configure up to 4 data rates and channels to be scanned. The rf_freq_ch and timeout parameters only need to be sent for num_ch channels
-pub fn set_zwave_scan_config_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool, det1: bool, bitrate_ch4: ZwaveMode, bitrate_ch3: ZwaveMode, bitrate_ch2: ZwaveMode, bitrate_ch1: ZwaveMode, zwave_addr_comp: ZwaveAddrComp, fcs_mode: FcsMode, rf_freq_ch1: u32, timeout_ch1: u8, rf_freq_ch2: u32, timeout_ch2: u8) -> [u8; 23] {
-    let mut cmd = [0u8; 23];
+pub fn set_zwave_scan_config_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool, det1: bool, bitrate_ch4: ZwaveMode, bitrate_ch3: ZwaveMode, bitrate_ch2: ZwaveMode, bitrate_ch1: ZwaveMode, zwave_addr_comp: ZwaveAddrComp, fcs_mode: FcsMode, rf_freq_ch1: u32, timeout_ch1: u8, rf_freq_ch2: u32, timeout_ch2: u8) -> [u8; 16] {
+    let mut cmd = [0u8; 16];
     cmd[0] = 0x02;
     cmd[1] = 0x9C;
 
@@ -122,8 +123,8 @@ pub fn set_zwave_scan_config_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool,
 }
 
 /// Configure the Z-Wave scan mode. The user can configure up to 4 data rates and channels to be scanned. The rf_freq_ch and timeout parameters only need to be sent for num_ch channels
-pub fn set_zwave_scan_config_adv_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool, det1: bool, bitrate_ch4: ZwaveMode, bitrate_ch3: ZwaveMode, bitrate_ch2: ZwaveMode, bitrate_ch1: ZwaveMode, zwave_addr_comp: ZwaveAddrComp, fcs_mode: FcsMode, rf_freq_ch1: u32, timeout_ch1: u8, rf_freq_ch2: u32, timeout_ch2: u8, rf_freq_ch3: u32, timeout_ch3: u8, rf_freq_ch4: u32, timeout_ch4: u8) -> [u8; 33] {
-    let mut cmd = [0u8; 33];
+pub fn set_zwave_scan_config_adv_cmd(num_ch: u8, det4: bool, det3: bool, det2: bool, det1: bool, bitrate_ch4: ZwaveMode, bitrate_ch3: ZwaveMode, bitrate_ch2: ZwaveMode, bitrate_ch1: ZwaveMode, zwave_addr_comp: ZwaveAddrComp, fcs_mode: FcsMode, rf_freq_ch1: u32, timeout_ch1: u8, rf_freq_ch2: u32, timeout_ch2: u8, rf_freq_ch3: u32, timeout_ch3: u8, rf_freq_ch4: u32, timeout_ch4: u8) -> [u8; 26] {
+    let mut cmd = [0u8; 26];
     cmd[0] = 0x02;
     cmd[1] = 0x9C;
 

@@ -9,22 +9,10 @@ pub mod system;
 pub mod radio;
 pub mod lora;
 pub mod ble;
-mod cmd;
+pub mod cmd;
+pub mod flrc;
 
-pub use cmd::RxBw; // Re-export Bandwidth enum as it is used for all packet types
-
-// Re-export cmd_ which do not have a dedicated API implementation
-pub use cmd::cmd_bpsk;
-pub use cmd::cmd_flrc;
-pub use cmd::cmd_fsk;
-pub use cmd::cmd_lrfhss;
-pub use cmd::cmd_ook;
-pub use cmd::cmd_ranging;
-pub use cmd::cmd_raw;
-pub use cmd::cmd_regmem;
-pub use cmd::cmd_wisun;
-pub use cmd::cmd_zigbee;
-pub use cmd::cmd_zwave;
+pub use cmd::{RxBw, PulseShape}; // Re-export Bandwidth enum as it is used for all packet types
 
 /// LR2021 Device
 pub struct Lr2021<I,O,SPI> {
@@ -98,6 +86,7 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
             return Err(Lr2021Error::InvalidSize);
         }
         let rsp_buf = &mut self.buffer[..req.len()];
+        // debug!("[WR]  {=[u8]:x} ", req);
         self.nss.set_low().map_err(|_| Lr2021Error::Pin)?;
         self.spi
             .transfer(rsp_buf, req).await

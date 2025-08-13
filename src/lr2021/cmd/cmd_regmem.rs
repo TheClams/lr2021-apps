@@ -1,7 +1,7 @@
 // Regmem commands API
 
 use crate::lr2021::status::Status;
-/// Writes a block of 32-bit words in register/memory space starting at a specific address. The address is auto-incremented after each data word so that data is stored in contiguous register/memory locations. Address must be 32-bit aligned and data length must be a multiple of 4. Maximum 64 words
+/// Writes a block of 32-bit words in register/memory space starting at a specific address. The address is auto-incremented after each data word so that data is stored in contiguous register/memory locations. Address must be 32-bit aligned and data length must be a multiple of 4. Maximum 32 words
 pub fn write_reg_mem32_cmd(addr: u32, data: u32) -> [u8; 9] {
     let mut cmd = [0u8; 9];
     cmd[0] = 0x01;

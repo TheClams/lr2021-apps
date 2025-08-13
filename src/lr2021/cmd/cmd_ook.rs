@@ -2,27 +2,7 @@
 
 use crate::lr2021::status::Status;
 use super::RxBw;
-
-/// Pulse shaping filter (same as for FSK)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PulseShape {
-    None = 0,
-    Custom = 1,
-    Bt0p3 = 4,
-    Bt0p5 = 5,
-    Bt0p7 = 6,
-    Bt1p0 = 7,
-    Bt2p0 = 2,
-    Rc0p3 = 8,
-    Rc0p5 = 9,
-    Rc0p7 = 10,
-    Rc1p0 = 11,
-    Rrc0p3 = 12,
-    Rrc0p4 = 3,
-    Rrc0p5 = 13,
-    Rrc0p7 = 14,
-    Rrc1p0 = 15,
-}
+use super::PulseShape;
 
 /// Magnitude depth
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,13 +19,11 @@ pub enum AddrComp {
     NodeBcast = 2,
 }
 
-/// Packet format (same as FSK)
+/// Packet format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PktFormat {
     FixedLength = 0,
     Variable8bit = 1,
-    Variable9bit = 2,
-    Variable16bit = 3,
 }
 
 /// CRC configuration (same as FSK)
@@ -116,8 +94,8 @@ pub fn set_ook_modulation_params_adv_cmd(bitrate: u32, pulse_shape: PulseShape, 
 }
 
 /// Sets the OOK packet parameters. It is recommended to have either whitening or manchester encoding enabled for OOK
-pub fn set_ook_packet_params_cmd(pre_len_tx: u16, addr_comp: AddrComp, pkt_format: PktFormat, pld_len: u16, crc: Crc, manchester: Manchester) -> [u8; 10] {
-    let mut cmd = [0u8; 10];
+pub fn set_ook_packet_params_cmd(pre_len_tx: u16, addr_comp: AddrComp, pkt_format: PktFormat, pld_len: u16, crc: Crc, manchester: Manchester) -> [u8; 8] {
+    let mut cmd = [0u8; 8];
     cmd[0] = 0x02;
     cmd[1] = 0x82;
 
@@ -150,8 +128,8 @@ pub fn set_ook_crc_params_cmd(polynom: u32, init: u32) -> [u8; 10] {
 }
 
 /// Sets the OOK syncword. Limited to 32bits max
-pub fn set_ook_sync_word_cmd(syncword: u32, bit_order: BitOrder, nb_bits: u8) -> [u8; 8] {
-    let mut cmd = [0u8; 8];
+pub fn set_ook_sync_word_cmd(syncword: u32, bit_order: BitOrder, nb_bits: u8) -> [u8; 7] {
+    let mut cmd = [0u8; 7];
     cmd[0] = 0x02;
     cmd[1] = 0x84;
 
@@ -181,8 +159,8 @@ pub fn get_ook_packet_status_req() -> [u8; 2] {
 }
 
 /// Configures the OOK detection. This API is for RX only. Detection pattern for TX has directly to be put into the TX FIFO
-pub fn set_ook_detector_cmd(preamble_pattern: u16, pattern_length: u8, pattern_num_repeats: u8, sw_is_raw: bool, sfd_kind: SfdKind, sfd_length: u8) -> [u8; 9] {
-    let mut cmd = [0u8; 9];
+pub fn set_ook_detector_cmd(preamble_pattern: u16, pattern_length: u8, pattern_num_repeats: u8, sw_is_raw: bool, sfd_kind: SfdKind, sfd_length: u8) -> [u8; 7] {
+    let mut cmd = [0u8; 7];
     cmd[0] = 0x02;
     cmd[1] = 0x88;
 
@@ -197,8 +175,8 @@ pub fn set_ook_detector_cmd(preamble_pattern: u16, pattern_length: u8, pattern_n
 }
 
 /// Configure the whitening for OOK packets. Setting a polynomial of 0 will disable the whitening. It is recommended to have either whitening or manchester encoding enabled for OOK
-pub fn set_ook_whitening_params_cmd(bit_idx: u8, polynom: u16, init: u16) -> [u8; 7] {
-    let mut cmd = [0u8; 7];
+pub fn set_ook_whitening_params_cmd(bit_idx: u8, polynom: u16, init: u16) -> [u8; 6] {
+    let mut cmd = [0u8; 6];
     cmd[0] = 0x02;
     cmd[1] = 0x89;
 
