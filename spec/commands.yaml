@@ -2162,16 +2162,14 @@ categories:
             - '7:0'
           description: Frequency error as a signed 24b value in Hz
           signed: true
-          optional: false
-          internal: true
+          optional: true
         - name: gain_step_pre
           bit_width: 8
           byte_positions:
           - - 11
             - '7:0'
           description: AGC gain latched on preamble
-          optional: false
-          internal: true
+          optional: true
       SetLoraAddress:
         opcode: 555
         description: Sets the address for LoRa RX address filtering

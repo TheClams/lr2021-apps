@@ -358,9 +358,68 @@ impl AsMut<[u8]> for LoraRxStatsRsp {
 
 /// Response for GetLoraPacketStatus command
 #[derive(Default)]
-pub struct LoraPacketStatusRsp([u8; 12]);
+pub struct LoraPacketStatusRsp([u8; 8]);
 
 impl LoraPacketStatusRsp {
+    /// Create a new response buffer
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// CRC status from header (explicit mode) or configured setting (implicit mode). 1=CRC_ON, 0=CRC_OFF
+    pub fn crc(&self) -> bool {
+        (self.0[2] >> 4) & 0x1 != 0
+    }
+
+    /// Coding rate from header (explicit mode) or configured setting (implicit mode)
+    pub fn coding_rate(&self) -> u8 {
+        self.0[2] & 0xF
+    }
+
+    /// Length of the last packet received
+    pub fn pkt_length(&self) -> u8 {
+        self.0[3]
+    }
+
+    /// Estimation of SNR on last packet received. In two's complement format multiplied by 4. Actual SNR in dB is snr_pkt/4
+    pub fn snr_pkt(&self) -> i8 {
+        self.0[4] as i8
+    }
+
+    /// Average over last packet received of RSSI. Actual signal power is –rssi_pkt/2 [dBm]
+    pub fn rssi_pkt(&self) -> u16 {
+        (((self.0[7] >> 1) & 0x1) as u16) |
+        ((self.0[5] as u16) << 1)
+    }
+
+    /// Estimation of RSSI of the LoRa signal (after despreading) on last packet received. Actual value is -rssi_signal_pkt/2 [dBm]
+    pub fn rssi_signal_pkt(&self) -> u16 {
+        ((self.0[7] & 0x1) as u16) |
+        ((self.0[6] as u16) << 1)
+    }
+
+    /// Flags which detector(s) received the packet. 0001=main, 0010=side1, 0100=side2, 1000=side3. In normal RX, only one flag is set. In CAD, all detector paths triggered are set
+    pub fn detector(&self) -> u8 {
+        (self.0[7] >> 2) & 0xF
+    }
+}
+
+impl AsMut<[u8]> for LoraPacketStatusRsp {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Response for GetLoraPacketStatus command
+#[derive(Default)]
+pub struct LoraPacketStatusRspAdv([u8; 12]);
+
+impl LoraPacketStatusRspAdv {
     /// Create a new response buffer
     pub fn new() -> Self {
         Self::default()
@@ -422,7 +481,7 @@ impl LoraPacketStatusRsp {
     }
 }
 
-impl AsMut<[u8]> for LoraPacketStatusRsp {
+impl AsMut<[u8]> for LoraPacketStatusRspAdv {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

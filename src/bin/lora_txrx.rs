@@ -1,9 +1,15 @@
 #![no_std]
 #![no_main]
 
+// LoRa TX/RX demo application
+// Blinking led green is for RX, red is for TX
+// Long press on user button switch the board role between TX and RX
+// Short press either send a packet of incrementing byte or display RX stats in RX
 use core::sync::atomic::{AtomicU8, Ordering};
 
 use defmt::*;
+use {defmt_rtt as _, panic_probe as _};
+
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_stm32::mode::Async;
@@ -15,12 +21,14 @@ use embassy_stm32::{
 };
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch};
 use embassy_time::Timer;
-use lr2021_apps::lr2021::cmd_common::{PacketType, RampTime, RxPath};
-use lr2021_apps::lr2021::lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf};
-use lr2021_apps::lr2021::status::{Intr, IRQ_MASK_RX_DONE};
-use {defmt_rtt as _, panic_probe as _};
 
-use lr2021_apps::lr2021::{ChipMode, Lr2021};
+use lr2021_apps::lr2021::{
+    Lr2021,
+    status::{Intr, IRQ_MASK_RX_DONE},
+    system::ChipMode,
+    radio::{PacketType, RampTime, RxPath},
+    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf},
+};
 
 /// Global variable to store the board state
 static BOARD_ROLE: AtomicU8 = AtomicU8::new(0);
@@ -147,10 +155,7 @@ async fn main(spawner: Spawner) {
     lr2021.reset().await.expect("Resetting chip !");
 
     // Check version
-    let version = lr2021
-        .get_version()
-        .await
-        .expect("Reading firmware version !");
+    let version = lr2021.get_version().await.expect("Reading firmware version !");
     info!("FW Version {}", version);
 
     // Packet ID: correspond to first byte sent
@@ -197,22 +202,7 @@ async fn main(spawner: Spawner) {
                 }
             }
             // RX Interrupt
-            Either::Second(_) => {
-                let pkt_len = lr2021.get_rx_pkt_len().await.expect("RX Fifo level");
-                let nb_byte = pkt_len.min(16) as usize; // Make sure to not read more than the local buffer size
-                lr2021.rd_rx_fifo(&mut data[..nb_byte]).await.expect("RX FIFO Read");
-                let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
-                let status = lr2021.get_lora_packet_status().await.expect("RX status");
-                let snr = status.snr_pkt();
-                let snr_frac = (snr&3) * 25;
-                info!("[RX] Payload = {:02x} | intr={:08x} | RSSI=-{}dBm, SNR={}.{:02}, FEI={}",
-                    data[..nb_byte],
-                    intr.value(),
-                    status.rssi_pkt()>>1,
-                    snr>>2, snr_frac,
-                    status.freq_offset()
-                );
-            }
+            Either::Second(_) => show_rx_pkt(&mut lr2021, &mut data).await,
         }
     }
 }
@@ -249,5 +239,21 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
         lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");
         info!(" -> Switching to FS: ready for TX");
     }
+}
 
+async fn show_rx_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8]) {
+    let pkt_len = lr2021.get_rx_pkt_len().await.expect("RX Fifo level");
+    let nb_byte = pkt_len.min(16) as usize; // Make sure to not read more than the local buffer size
+    lr2021.rd_rx_fifo(&mut data[..nb_byte]).await.expect("RX FIFO Read");
+    let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
+    let status = lr2021.get_lora_packet_status_adv().await.expect("RX status");
+    let snr = status.snr_pkt();
+    let snr_frac = (snr&3) * 25;
+    info!("[RX] Payload = {:02x} | intr={:08x} | RSSI=-{}dBm, SNR={}.{:02}, FEI={}",
+        data[..nb_byte],
+        intr.value(),
+        status.rssi_pkt()>>1,
+        snr>>2, snr_frac,
+        status.freq_offset()
+    );
 }

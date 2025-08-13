@@ -49,7 +49,7 @@ impl Status {
 
     /// Create a status from a slice of at least two elements
     pub fn from_slice(bytes: &[u8]) -> Status {
-        let v = ((*bytes.get(0).unwrap_or(&0) as u16) << 8)
+        let v = ((*bytes.first().unwrap_or(&0) as u16) << 8)
             | (*bytes.get(1).unwrap_or(&0) as u16);
         Status(v)
     }
@@ -183,7 +183,7 @@ impl Intr {
     /// Handle gracefully case where slice is smaller than interrupt size
     /// (this happen)
     pub fn from_slice(bytes: &[u8]) -> Intr {
-        let v = ((*bytes.get(0).unwrap_or(&0) as u32) << 24)
+        let v = ((*bytes.first().unwrap_or(&0) as u32) << 24)
             | ((*bytes.get(1).unwrap_or(&0) as u32) << 16)
             | ((*bytes.get(2).unwrap_or(&0) as u32) <<  8)
             | (*bytes.get(3).unwrap_or(&0) as u32);
