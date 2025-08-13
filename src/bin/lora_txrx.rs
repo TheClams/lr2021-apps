@@ -173,7 +173,7 @@ async fn main(spawner: Spawner) {
     lr2021.set_tx_params(0, RampTime::Ramp8u).await.expect("Setting TX parameters");
 
     // Start RX continuous
-    match lr2021.set_rx(0xFFFFFF, true).await {
+    match lr2021.set_rx(0xFFFFFFFF, true).await {
         Ok(_) => info!("[RX] Searching Preamble"),
         Err(e) => error!("Fail while set_rx() : {}", e),
     }
@@ -213,8 +213,8 @@ async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     let stats = lr2021.get_lora_rx_stats().await.expect("RX stats");
     info!("[RX] Clearing stats | RX={}, CRC Err={}, HdrErr={}, FalseSync={}",
         stats.pkt_rx(),
-        stats.crc_errors(),
-        stats.header_errors(),
+        stats.crc_error(),
+        stats.header_error(),
         stats.false_synch(),
     );
 }
@@ -233,7 +233,7 @@ async fn send_pkt(lr2021: &mut Lr2021Stm32, pkt_id: &mut u8, data: &mut [u8]) {
 async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     if is_rx {
-        lr2021.set_rx(0xFFFFFF, true).await.expect("SetRx");
+        lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
         info!(" -> Switched to RX");
     } else {
         lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");

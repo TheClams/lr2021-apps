@@ -8,10 +8,12 @@ pub mod status;
 pub mod system;
 pub mod radio;
 pub mod lora;
-
-// Re-export all cmd_
+pub mod ble;
 mod cmd;
-pub use cmd::cmd_ble;
+
+pub use cmd::RxBw; // Re-export Bandwidth enum as it is used for all packet types
+
+// Re-export cmd_ which do not have a dedicated API implementation
 pub use cmd::cmd_bpsk;
 pub use cmd::cmd_flrc;
 pub use cmd::cmd_fsk;
@@ -23,7 +25,6 @@ pub use cmd::cmd_regmem;
 pub use cmd::cmd_wisun;
 pub use cmd::cmd_zigbee;
 pub use cmd::cmd_zwave;
-pub use cmd::RxBw; // Re-export Bandwidth enum as it is used for all packet types
 
 /// LR2021 Device
 pub struct Lr2021<I,O,SPI> {

@@ -326,13 +326,13 @@ impl LoraRxStatsRsp {
     }
 
     /// Number of received packets with a CRC error
-    pub fn crc_errors(&self) -> u16 {
+    pub fn crc_error(&self) -> u16 {
         (self.0[5] as u16) |
         ((self.0[4] as u16) << 8)
     }
 
     /// Number of received packets with a header error
-    pub fn header_errors(&self) -> u16 {
+    pub fn header_error(&self) -> u16 {
         (self.0[7] as u16) |
         ((self.0[6] as u16) << 8)
     }

@@ -58,14 +58,14 @@ pub enum FallbackMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketType {
     Lora = 0,
-    Advanced = 1,
-    Fsk = 2,
+    FskGeneric = 1,
+    FskLegacy = 2,
     Ble = 3,
     Ranging = 4,
     Flrc = 5,
     Bpsk = 6,
     LrFhss = 7,
-    WmBus = 8,
+    Wmbus = 8,
     Wisun = 9,
     Ook = 10,
     Raw = 11,
@@ -75,7 +75,7 @@ pub enum PacketType {
 
 /// Timeout stop condition
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StopOnPreamble {
+pub enum StopTimeout {
     StopOnSyncwordHeader = 0,
     StopOnPreamble = 1,
 }
@@ -213,12 +213,12 @@ pub fn get_packet_type_req() -> [u8; 2] {
 }
 
 /// Defines if the RX timeout should be stopped on Syncword/Header detection or on Preamble detection
-pub fn stop_timeout_on_preamble_cmd(stop_on_preamble: StopOnPreamble) -> [u8; 3] {
+pub fn set_stop_timeout_cmd(stop_timeout: StopTimeout) -> [u8; 3] {
     let mut cmd = [0u8; 3];
     cmd[0] = 0x02;
     cmd[1] = 0x09;
 
-    cmd[2] |= (stop_on_preamble as u8) & 0x1;
+    cmd[2] |= (stop_timeout as u8) & 0x1;
     cmd
 }
 

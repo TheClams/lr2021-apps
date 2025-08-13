@@ -12,13 +12,6 @@ pub enum BleMode {
     LeCoded125k = 3,
 }
 
-/// CRC in FIFO control
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CrcInFifo {
-    CrcNotAppended = 0,
-    CrcAppended = 1,
-}
-
 /// BLE channel type selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelType {
@@ -49,12 +42,12 @@ pub fn set_ble_modulation_params_adv_cmd(ble_mode: BleMode, rx_bw: RxBw) -> [u8;
 }
 
 /// Sets the BLE channel/packet dependent parameters
-pub fn set_ble_channel_params_cmd(crc_in_fifo: CrcInFifo, channel_type: ChannelType, whit_init: u8, crc_init: u32, syncword: u32) -> [u8; 12] {
+pub fn set_ble_channel_params_cmd(crc_in_fifo: bool, channel_type: ChannelType, whit_init: u8, crc_init: u32, syncword: u32) -> [u8; 12] {
     let mut cmd = [0u8; 12];
     cmd[0] = 0x02;
     cmd[1] = 0x61;
 
-    cmd[2] |= ((crc_in_fifo as u8) & 0x1) << 4;
+    if crc_in_fifo { cmd[2] |= 16; }
     cmd[2] |= (channel_type as u8) & 0xF;
     cmd[3] |= whit_init;
     cmd[4] |= ((crc_init >> 16) & 0xFF) as u8;
@@ -80,6 +73,11 @@ pub fn set_ble_tx_cmd(pld_len: u8) -> [u8; 3] {
 /// Gets the status of the last received packet. Status is updated at the end of a reception (RxDone irq), but rssi_sync is already updated on SyncWordValid irq
 pub fn get_ble_packet_status_req() -> [u8; 2] {
     [0x02, 0x65]
+}
+
+/// Gets the internal statistics of the received packets. Statistics are reset on a POR, sleep without memory retention and the command ResetRxStats
+pub fn get_ble_rx_stats_req() -> [u8; 2] {
+    [0x02, 0x64]
 }
 
 /// Sets PDU length for TX
@@ -134,6 +132,116 @@ impl BlePacketStatusRsp {
 }
 
 impl AsMut<[u8]> for BlePacketStatusRsp {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Response for GetBleRxStats command
+#[derive(Default)]
+pub struct BleRxStatsRsp([u8; 8]);
+
+impl BleRxStatsRsp {
+    /// Create a new response buffer
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// Total number of received packets
+    pub fn pkt_rx(&self) -> u16 {
+        (self.0[3] as u16) |
+        ((self.0[2] as u16) << 8)
+    }
+
+    /// Number of received packets with a CRC error
+    pub fn crc_error(&self) -> u16 {
+        (self.0[5] as u16) |
+        ((self.0[4] as u16) << 8)
+    }
+
+    /// Number of packets with a length error
+    pub fn len_error(&self) -> u16 {
+        (self.0[7] as u16) |
+        ((self.0[6] as u16) << 8)
+    }
+}
+
+impl AsMut<[u8]> for BleRxStatsRsp {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Response for GetBleRxStats command
+#[derive(Default)]
+pub struct BleRxStatsRspAdv([u8; 18]);
+
+impl BleRxStatsRspAdv {
+    /// Create a new response buffer
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return Status
+    pub fn status(&mut self) -> Status {
+        Status::from_slice(&self.0[..2])
+    }
+
+    /// Total number of received packets
+    pub fn pkt_rx(&self) -> u16 {
+        (self.0[3] as u16) |
+        ((self.0[2] as u16) << 8)
+    }
+
+    /// Number of received packets with a CRC error
+    pub fn crc_error(&self) -> u16 {
+        (self.0[5] as u16) |
+        ((self.0[4] as u16) << 8)
+    }
+
+    /// Number of packets with a length error
+    pub fn len_error(&self) -> u16 {
+        (self.0[7] as u16) |
+        ((self.0[6] as u16) << 8)
+    }
+
+    /// Number of detections
+    pub fn pbl_det(&self) -> u16 {
+        (self.0[9] as u16) |
+        ((self.0[8] as u16) << 8)
+    }
+
+    /// Number of good found syncword
+    pub fn sync_ok(&self) -> u16 {
+        (self.0[11] as u16) |
+        ((self.0[10] as u16) << 8)
+    }
+
+    /// Number of failed syncword
+    pub fn sync_fail(&self) -> u16 {
+        (self.0[13] as u16) |
+        ((self.0[12] as u16) << 8)
+    }
+
+    /// Number of RTC timeouts
+    pub fn timeout(&self) -> u16 {
+        (self.0[15] as u16) |
+        ((self.0[14] as u16) << 8)
+    }
+
+    /// Number of packets received with a good CRC
+    pub fn crc_ok(&self) -> u16 {
+        (self.0[17] as u16) |
+        ((self.0[16] as u16) << 8)
+    }
+}
+
+impl AsMut<[u8]> for BleRxStatsRspAdv {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }

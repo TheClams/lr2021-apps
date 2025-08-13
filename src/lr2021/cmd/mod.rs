@@ -14,5 +14,5 @@ pub mod cmd_wisun;
 pub mod cmd_zigbee;
 pub mod cmd_zwave;
 
-// Re-export
+// Re-export Bandwidth as it is shared amongst multple commands
 pub use cmd_fsk::RxBw;

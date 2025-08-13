@@ -33,6 +33,12 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         self.cmd_wr(&req).await
     }
 
+    /// Set the Fallback mode after TX/RX
+    pub async fn set_fallback(&mut self, fallback_mode: FallbackMode) -> Result<(), Lr2021Error> {
+        let req = set_rx_tx_fallback_mode_cmd(fallback_mode);
+        self.cmd_wr(&req).await
+    }
+
     /// Set chip in TX mode. Set timeout to 0 or to a value longer than the packet duration.
     pub async fn set_tx(&mut self, tx_timeout: u32) -> Result<(), Lr2021Error> {
         let req = set_tx_adv_cmd(tx_timeout);

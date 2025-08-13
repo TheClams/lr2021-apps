@@ -125,11 +125,8 @@ categories:
           byte_positions:
           - - 2
             - '4'
-          description: CRC in FIFO control
+          description: Flag when CRC is handle manually by the host
           optional: false
-          enum:
-            CRC_NOT_APPENDED: 0
-            CRC_APPENDED: 1
         - name: channel_type
           bit_width: 4
           byte_positions:
@@ -226,6 +223,87 @@ categories:
             - '7:0'
           description: Link quality indicator (0.25dB)
           optional: false
+      GetBleRxStats:
+        opcode: 612
+        description: Gets the internal statistics of the received packets. Statistics are reset on a POR, sleep without memory
+          retention and the command ResetRxStats
+        parameters: []
+        status_fields:
+        - name: pkt_rx
+          bit_width: 16
+          byte_positions:
+          - - 2
+            - '7:0'
+          - - 3
+            - '7:0'
+          description: Total number of received packets
+          optional: false
+          internal: false
+        - name: crc_error
+          bit_width: 16
+          byte_positions:
+          - - 4
+            - '7:0'
+          - - 5
+            - '7:0'
+          description: Number of received packets with a CRC error
+          optional: false
+          internal: false
+        - name: len_error
+          bit_width: 16
+          byte_positions:
+          - - 6
+            - '7:0'
+          - - 7
+            - '7:0'
+          description: Number of packets with a length error
+          optional: false
+          internal: false
+        - name: pbl_det
+          bit_width: 16
+          byte_positions:
+          - - 8
+            - '7:0'
+          - - 9
+            - '7:0'
+          description: Number of detections
+          optional: true
+        - name: sync_ok
+          bit_width: 16
+          byte_positions:
+          - - 10
+            - '7:0'
+          - - 11
+            - '7:0'
+          description: Number of good found syncword
+          optional: true
+        - name: sync_fail
+          bit_width: 16
+          byte_positions:
+          - - 12
+            - '7:0'
+          - - 13
+            - '7:0'
+          description: Number of failed syncword
+          optional: true
+        - name: timeout
+          bit_width: 16
+          byte_positions:
+          - - 14
+            - '7:0'
+          - - 15
+            - '7:0'
+          description: Number of RTC timeouts
+          optional: true
+        - name: crc_ok
+          bit_width: 16
+          byte_positions:
+          - - 16
+            - '7:0'
+          - - 17
+            - '7:0'
+          description: Number of packets received with a good CRC
+          optional: true
       SetBleTxPduLen:
         opcode: 614
         description: Sets PDU length for TX
@@ -530,14 +608,14 @@ categories:
           default: 0
           enum:
             LORA: 0
-            ADVANCED: 1
-            FSK: 2
+            FSK_GENERIC: 1
+            FSK_LEGACY: 2
             BLE: 3
             RANGING: 4
             FLRC: 5
             BPSK: 6
             LR_FHSS: 7
-            WM_BUS: 8
+            WMBUS: 8
             WISUN: 9
             OOK: 10
             RAW: 11
@@ -555,11 +633,11 @@ categories:
             - '7:0'
           description: Current packet type (see SetPacketType for values)
           optional: false
-      StopTimeoutOnPreamble:
+      SetStopTimeout:
         opcode: 521
         description: Defines if the RX timeout should be stopped on Syncword/Header detection or on Preamble detection
         parameters:
-        - name: stop_on_preamble
+        - name: stop_timeout
           bit_width: 1
           byte_positions:
           - - 2
@@ -2052,7 +2130,7 @@ categories:
             - '7:0'
           description: Total number of received packets
           optional: false
-        - name: crc_errors
+        - name: crc_error
           bit_width: 16
           byte_positions:
           - - 4
@@ -2061,7 +2139,7 @@ categories:
             - '7:0'
           description: Number of received packets with a CRC error
           optional: false
-        - name: header_errors
+        - name: header_error
           bit_width: 16
           byte_positions:
           - - 6
