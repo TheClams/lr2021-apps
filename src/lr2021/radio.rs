@@ -33,6 +33,18 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         self.cmd_wr(&req).await
     }
 
+    /// Configure LF Power Amplifier
+    pub async fn set_pa_lf(&mut self, pa_lf_mode: PaLfMode, pa_lf_duty_cycle: u8, pa_lf_slices: u8) -> Result<(), Lr2021Error> {
+        let req = set_pa_config_cmd(PaSel::LfPa, pa_lf_mode, pa_lf_duty_cycle, pa_lf_slices);
+        self.cmd_wr(&req).await
+    }
+
+    /// Configure HF Power Amplifier
+    pub async fn set_pa_hf(&mut self) -> Result<(), Lr2021Error> {
+        let req = set_pa_config_cmd(PaSel::HfPa, PaLfMode::LfPaFsm, 0, 0);
+        self.cmd_wr(&req).await
+    }
+
     /// Set the Fallback mode after TX/RX
     pub async fn set_fallback(&mut self, fallback_mode: FallbackMode) -> Result<(), Lr2021Error> {
         let req = set_rx_tx_fallback_mode_cmd(fallback_mode);
