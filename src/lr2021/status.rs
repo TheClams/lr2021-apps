@@ -202,6 +202,10 @@ impl Intr {
         self.value() & mask != 0
     }
 
+    pub fn none(&self) -> bool {
+        self.0 == 0
+    }
+
     pub fn rx_fifo(&self) -> bool {
         (self.0 & IRQ_MASK_RX_FIFO) != 0
     }
@@ -299,4 +303,46 @@ impl Intr {
         (self.0 & IRQ_MASK_RNG_TIMEOUT) != 0
     }
 
+}
+
+impl Format for Intr {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(f, "Intr: ");
+        if self.none() {
+            defmt::write!(f, "None");
+            return;
+        }
+        if self.error()               {defmt::write!(f, "Error ")};
+        if self.cmd()                 {defmt::write!(f, "CmdError ")};
+        if self.rx_fifo()             {defmt::write!(f, "FifoRx ")};
+        if self.tx_fifo()             {defmt::write!(f, "FifoTx ")};
+        if self.eol()                 {defmt::write!(f, "EndOfLife ")};
+        if self.pa()                  {defmt::write!(f, "PowerAmplifier ")};
+        if self.preamble_detected()   {defmt::write!(f, "PreambleDetected ")};
+        if self.sync_fail()           {defmt::write!(f, "SyncFail ")};
+        if self.cad_detected()        {defmt::write!(f, "CadDetected ")};
+        if self.timeout()             {defmt::write!(f, "Timeout ")};
+        if self.crc_error()           {defmt::write!(f, "CrcError ")};
+        if self.len_error()           {defmt::write!(f, "LenError ")};
+        if self.addr_error()          {defmt::write!(f, "AddrError ")};
+        if self.lora_header_valid()   {defmt::write!(f, "LoraHeaderValid ")};
+        if self.lora_header_err()     {defmt::write!(f, "LoraHeaderError ")};
+        if self.lora_tx_rx_hop()      {defmt::write!(f, "LoraTxRxHop ")};
+        if self.lora_symbol_end()     {defmt::write!(f, "LoraSymbolEnd ")};
+        if self.rx_done()             {defmt::write!(f, "RxDone ")};
+        if self.tx_done()             {defmt::write!(f, "TxDone ")};
+        if self.cad_done()            {defmt::write!(f, "CadDone ")};
+        if self.tx_timestamp()        {defmt::write!(f, "TimestampTx ")};
+        if self.rx_timestamp()        {defmt::write!(f, "TimestampRx ")};
+        if self.lora_hdr_timestamp()  {defmt::write!(f, "TimestampLoraHeader ")};
+        if self.lora_timestamp_stat() {defmt::write!(f, "TimestampLoraStat ")};
+        if self.fhss()                {defmt::write!(f, "FHSS ")};
+        if self.inter_packet1()       {defmt::write!(f, "InterPacket1 ")};
+        if self.inter_packet2()       {defmt::write!(f, "InterPacket2 ")};
+        if self.rng_resp_done()       {defmt::write!(f, "RangingRespDone ")};
+        if self.rng_req_vld()         {defmt::write!(f, "RangingReqValid ")};
+        if self.rng_req_dis()         {defmt::write!(f, "RangingReqDis ")};
+        if self.rng_exch_vld()        {defmt::write!(f, "RangingExchValid ")};
+        if self.rng_timeout()         {defmt::write!(f, "RangingTimeout")};
+    }
 }

@@ -1,4 +1,4 @@
-use defmt::{debug, error, Format};
+use defmt::{Format};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_hal::digital::v2::{OutputPin, InputPin};
 use embedded_hal_async::spi::SpiBus;
@@ -60,7 +60,6 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         Timer::after_millis(10).await;
         self.nreset.set_high().map_err(|_| Lr2021Error::Pin)?;
         Timer::after_millis(10).await;
-        debug!("Reset done");
         Ok(())
     }
 
@@ -92,11 +91,7 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
             .transfer(rsp_buf, req).await
             .map_err(|_| Lr2021Error::Spi)?;
         self.nss.set_high().map_err(|_| Lr2021Error::Pin)?;
-        let status = self.status();
-        if !status.is_ok() {
-            error!("Request failed: => {=[u8]:x} =< {}", self.buffer[..req.len()], status);
-        }
-        status.check()
+        self.status().check()
     }
 
     /// Write a command and read response
@@ -114,11 +109,7 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         self.nss.set_high().map_err(|_| Lr2021Error::Pin)?;
         // Save the first 2 byte in case we want to access status information
         self.buffer[..2].copy_from_slice(&rsp[..2]);
-        let status = self.status();
-        if !status.is_ok() {
-            error!("Response => {=[u8]:x} =< {}", rsp, status);
-        }
-        status.check()
+        self.status().check()
     }
 
     /// Write a command
@@ -129,9 +120,6 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
             .transfer_in_place(&mut opcode).await
             .map_err(|_| Lr2021Error::Spi)?;
         let status = Status::from_slice(&opcode);
-        if !status.is_ok() {
-            error!("Previous command failed: {}", status);
-        }
         self.spi
             .transfer_in_place(buffer).await
             .map_err(|_| Lr2021Error::Spi)?;

@@ -1,4 +1,5 @@
 use defmt::Format;
+use embassy_time::Duration;
 use embedded_hal::digital::v2::{OutputPin, InputPin};
 use embedded_hal_async::spi::SpiBus;
 
@@ -33,6 +34,14 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
     }
 
     /// Read status and interrupt from the chip
+    pub async fn get_errors(&mut self) -> Result<ErrorsRsp, Lr2021Error> {
+        let req = get_errors_req();
+        let mut rsp = ErrorsRsp::new();
+        self.cmd_rd(&req, rsp.as_mut()).await?;
+        Ok(rsp)
+    }
+
+    /// Read status and interrupt from the chip
     pub async fn get_version(&mut self) -> Result<VersionRsp, Lr2021Error> {
         let req = get_version_req();
         let mut rsp = VersionRsp::new();
@@ -62,7 +71,9 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         let f2 = freqs_4m.get(2).copied().unwrap_or(0);
         let req = calib_fe_cmd(f0,f1,f2);
         let len = 2 + 2*freqs_4m.len();
-        self.cmd_wr(&req[..len]).await
+        // self.cmd_wr(&req[..len]).await
+        self.cmd_wr(&req[..len]).await?;
+        self.wait_ready(Duration::from_millis(100)).await
     }
 
     /// Set Tx power and ramp time
