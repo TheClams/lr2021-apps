@@ -41,7 +41,7 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
 
     /// Configure HF Power Amplifier
     pub async fn set_pa_hf(&mut self) -> Result<(), Lr2021Error> {
-        let req = set_pa_config_cmd(PaSel::HfPa, PaLfMode::LfPaFsm, 0, 0);
+        let req = set_pa_config_cmd(PaSel::HfPa, PaLfMode::LfPaFsm, 6, 7);
         self.cmd_wr(&req).await
     }
 

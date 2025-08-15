@@ -143,11 +143,11 @@ pub const IRQ_MASK_RNG_REQ_VLD         : u32 = 0x00000004;
 pub const IRQ_MASK_TX_TIMESTAMP        : u32 = 0x00000008;
 pub const IRQ_MASK_RX_TIMESTAMP        : u32 = 0x00000010;
 pub const IRQ_MASK_PREAMBLE_DETECTED   : u32 = 0x00000020;
-pub const IRQ_MASK_LORA_HEADER_VALID   : u32 = 0x00000040;
+pub const IRQ_MASK_HEADER_VALID        : u32 = 0x00000040;
 pub const IRQ_MASK_CAD_DETECTED        : u32 = 0x00000080;
 
 pub const IRQ_MASK_LORA_HDR_TIMESTAMP  : u32 = 0x00000100;
-pub const IRQ_MASK_LORA_HEADER_ERR     : u32 = 0x00000200;
+pub const IRQ_MASK_HEADER_ERR          : u32 = 0x00000200;
 pub const IRQ_MASK_EOL                 : u32 = 0x00000400;
 pub const IRQ_MASK_PA                  : u32 = 0x00000800;
 pub const IRQ_MASK_LORA_TX_RX_HOP      : u32 = 0x00001000;
@@ -173,7 +173,7 @@ pub const IRQ_MASK_RNG_REQ_DIS         : u32 = 0x20000000;
 pub const IRQ_MASK_RNG_EXCH_VLD        : u32 = 0x40000000;
 pub const IRQ_MASK_RNG_TIMEOUT         : u32 = 0x80000000;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Intr(u32);
 
 impl Intr {
@@ -224,8 +224,8 @@ impl Intr {
     pub fn preamble_detected(&self) -> bool {
         (self.0 & IRQ_MASK_PREAMBLE_DETECTED) != 0
     }
-    pub fn lora_header_valid(&self) -> bool {
-        (self.0 & IRQ_MASK_LORA_HEADER_VALID) != 0
+    pub fn header_valid(&self) -> bool {
+        (self.0 & IRQ_MASK_HEADER_VALID) != 0
     }
     pub fn cad_detected(&self) -> bool {
         (self.0 & IRQ_MASK_CAD_DETECTED) != 0
@@ -233,8 +233,8 @@ impl Intr {
     pub fn lora_hdr_timestamp(&self) -> bool {
         (self.0 & IRQ_MASK_LORA_HDR_TIMESTAMP) != 0
     }
-    pub fn lora_header_err(&self) -> bool {
-        (self.0 & IRQ_MASK_LORA_HEADER_ERR) != 0
+    pub fn header_err(&self) -> bool {
+        (self.0 & IRQ_MASK_HEADER_ERR) != 0
     }
     pub fn eol(&self) -> bool {
         (self.0 & IRQ_MASK_EOL) != 0
@@ -325,8 +325,8 @@ impl Format for Intr {
         if self.crc_error()           {defmt::write!(f, "CrcError ")};
         if self.len_error()           {defmt::write!(f, "LenError ")};
         if self.addr_error()          {defmt::write!(f, "AddrError ")};
-        if self.lora_header_valid()   {defmt::write!(f, "LoraHeaderValid ")};
-        if self.lora_header_err()     {defmt::write!(f, "LoraHeaderError ")};
+        if self.header_valid()        {defmt::write!(f, "HeaderValid ")};
+        if self.header_err()          {defmt::write!(f, "HeaderError ")};
         if self.lora_tx_rx_hop()      {defmt::write!(f, "LoraTxRxHop ")};
         if self.lora_symbol_end()     {defmt::write!(f, "LoraSymbolEnd ")};
         if self.rx_done()             {defmt::write!(f, "RxDone ")};
