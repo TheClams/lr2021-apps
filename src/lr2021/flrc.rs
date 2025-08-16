@@ -1,11 +1,11 @@
-use embedded_hal::digital::v2::{OutputPin, InputPin};
+use embedded_hal::digital::v2::OutputPin;
 use embedded_hal_async::spi::SpiBus;
 
 pub use super::cmd::cmd_flrc::*;
-use super::{Lr2021, Lr2021Error, PulseShape};
+use super::{BusyPin, Lr2021, Lr2021Error, PulseShape};
 
-impl<I,O,SPI> Lr2021<I,O,SPI> where
-    I: InputPin, O: OutputPin, SPI: SpiBus<u8>
+impl<O,SPI, M> Lr2021<O,SPI, M> where
+    O: OutputPin, SPI: SpiBus<u8>, M: BusyPin
 {
 
     /// Set Modulation parameters: raw bitrate, coding rate and pulse shaping

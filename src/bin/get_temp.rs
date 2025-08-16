@@ -59,7 +59,7 @@ async fn main(spawner: Spawner) {
     let spi = Spi::new(p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config);
     let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
-    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
+    let mut lr2021 = Lr2021::new_blocking(nreset, busy, spi, nss);
     lr2021.reset().await
         .unwrap_or_else(|_| error!("Unable to reset chip !"));
 

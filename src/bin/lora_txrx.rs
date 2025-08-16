@@ -5,7 +5,6 @@
 // Blinking led green is for RX, red is for TX
 // Long press on user button switch the board role between TX and RX
 // Short press either send a packet of incrementing byte or display RX stats in RX
-use core::sync::atomic::{AtomicU8, Ordering};
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -19,88 +18,19 @@ use embassy_stm32::{
     gpio::{Input, Level, Output, Pull, Speed},
     time::Hertz,
 };
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch};
-use embassy_time::Timer;
+use embassy_sync::{signal::Signal, watch::Watch};
 
-use lr2021_apps::lr2021::{
-    Lr2021,
-    status::{Intr, IRQ_MASK_RX_DONE},
-    system::ChipMode,
-    radio::{PacketType, RampTime, RxPath},
-    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf},
-};
+use lr2021_apps::{board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress}, lr2021::{
+    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf}, radio::{PacketType, RampTime, RxPath}, status::{Intr, IRQ_MASK_RX_DONE}, system::ChipMode, BusyBlocking, Lr2021
+}};
 
-/// Global variable to store the board state
-static BOARD_ROLE: AtomicU8 = AtomicU8::new(0);
 /// Generate event when the button is press with short (0) or long (1) duration
-static BUTTON_PRESS: Watch<CriticalSectionRawMutex, u8, 3> = Watch::new();
+static BUTTON_PRESS: WatchButtonPress = Watch::new();
+/// Led modes
+static LED_TX_MODE: SignalLedMode = Signal::new();
+static LED_RX_MODE: SignalLedMode = Signal::new();
 
 const PLD_SIZE : u8 = 10;
-
-/// Board Role: TX or RX
-#[derive(Debug, Clone, Copy, Format, PartialEq)]
-enum BoardRole {
-    Rx = 0,
-    Tx = 1,
-}
-impl BoardRole {
-    pub fn toggle(&mut self) {
-        *self = match self {
-            BoardRole::Rx => BoardRole::Tx,
-            BoardRole::Tx => BoardRole::Rx,
-        }
-    }
-}
-
-impl From<u8> for BoardRole {
-    fn from(value: u8) -> Self {
-        match value {
-            1 => BoardRole::Tx,
-            _ => BoardRole::Rx,
-        }
-    }
-}
-
-/// Task to blink a led
-#[embassy_executor::task(pool_size = 2)]
-async fn blink(mut led: Output<'static>, led_role: BoardRole) {
-    let mut button_press = BUTTON_PRESS.receiver().unwrap();
-    loop {
-        let board_role: BoardRole = BOARD_ROLE.load(Ordering::Relaxed).into();
-        if board_role == led_role {
-            led.toggle();
-            Timer::after_millis(100).await;
-        } else {
-            led.set_low();
-            button_press.changed().await;
-        }
-    }
-}
-
-/// Task to handle the user interface:
-///   - a long press change the board role (TX or RX)
-///   - a short press either send a packet (TX mode) or clear the RX stat (RX mode)
-#[embassy_executor::task]
-async fn user_intf(mut button: ExtiInput<'static>) {
-    let mut role = BoardRole::Rx;
-    let button_press = BUTTON_PRESS.sender();
-    loop {
-        button.wait_for_falling_edge().await;
-        // Small wait to debounce button press
-        Timer::after_millis(5).await;
-        // Determine if this is a short or long press
-        match select(button.wait_for_high(), Timer::after_millis(500)).await {
-            // Short press
-            Either::First(_) => button_press.send(0),
-            // Long press
-            Either::Second(_) => {
-                role.toggle();
-                BOARD_ROLE.store(role as u8, Ordering::Relaxed);
-                button_press.send(1);
-            }
-        }
-    }
-}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -108,15 +38,17 @@ async fn main(spawner: Spawner) {
     info!("Starting lora_txrx");
 
     // Start tasks to blink the TX/RX leds
-    // and handle the button press to
     let led_tx = Output::new(p.PC1, Level::High, Speed::Low);
-    spawner.spawn(blink(led_tx, BoardRole::Tx)).unwrap();
+    spawner.spawn(blink(led_tx, &LED_TX_MODE)).unwrap();
+    LED_TX_MODE.signal(LedMode::Off);
 
     let led_rx = Output::new(p.PC0, Level::High, Speed::Low);
-    spawner.spawn(blink(led_rx, BoardRole::Rx)).unwrap();
+    spawner.spawn(blink(led_rx, &LED_RX_MODE)).unwrap();
+    LED_RX_MODE.signal(LedMode::BlinkSlow);
 
+    // Start task to check the button press
     let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
-    spawner.spawn(user_intf(button)).unwrap();
+    spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
 
     // Pin mapping
     // Name  | Connector | Nucleo
@@ -151,7 +83,7 @@ async fn main(spawner: Spawner) {
     let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
     // Create driver and reset board
-    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
+    let mut lr2021 = Lr2021::new_blocking(nreset, busy, spi, nss);
     lr2021.reset().await.expect("Resetting chip !");
 
     // Check version
@@ -166,6 +98,12 @@ async fn main(spawner: Spawner) {
     lr2021.set_rf(901_000_000).await.expect("Setting RF to 901MHz");
     lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("Setting RX path to LF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
+
+    match lr2021.get_status().await {
+        Ok((status, intr)) => info!("Calibration Done: {} | {}", status, intr),
+        Err(e) => warn!("Calibration Failed: {}", e),
+    }
+
     lr2021.set_packet_type(PacketType::Lora).await.expect("Setting packet type");
     lr2021.set_lora_modulation(Sf::Sf5, LoraBw::Bw1000, LoraCr::Cr1Ham45Si, Ldro::Off).await.expect("Setting packet type");
     // Packet Preamble 8 Symbols, 10 Byte payload, Explicit header with CRC and up-chirp
@@ -186,19 +124,22 @@ async fn main(spawner: Spawner) {
 
     // Wait for a button press for actions
     let mut button_press = BUTTON_PRESS.receiver().unwrap();
+
+    let mut role = BoardRole::Rx;
     loop {
         match select(button_press.changed(), irq.wait_for_rising_edge()).await {
             Either::First(press) => {
-                let role: BoardRole = BOARD_ROLE.load(Ordering::Relaxed).into();
                 match (press, role) {
                     // Short press in RX => clear stats
-                    (0, BoardRole::Rx) => show_and_clear_rx_stats(&mut lr2021).await,
+                    (ButtonPressKind::Short, BoardRole::Rx) => show_and_clear_rx_stats(&mut lr2021).await,
                     // Short press in TX => send a packet
-                    (0, BoardRole::Tx) => send_pkt(&mut lr2021, &mut pkt_id, &mut data).await,
+                    (ButtonPressKind::Short, BoardRole::Tx) => send_pkt(&mut lr2021, &mut pkt_id, &mut data).await,
                     // Long press: switch role TX/RX
-                    (1, BoardRole::Rx) => switch_mode(&mut lr2021, true).await,
-                    (1, BoardRole::Tx) => switch_mode(&mut lr2021, false).await,
-                    (n, _) => warn!("Button press with value {} not implemented !", n),
+                    (ButtonPressKind::Long, _) => {
+                        role.toggle();
+                        switch_mode(&mut lr2021, role.is_rx()).await;
+                    }
+                    (n, r) => warn!("{} in role {} not implemented !", n, r),
                 }
             }
             // RX Interrupt
@@ -207,7 +148,7 @@ async fn main(spawner: Spawner) {
     }
 }
 
-type Lr2021Stm32 = Lr2021<Input<'static>,Output<'static>,Spi<'static, Async>>;
+type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, Async>,BusyBlocking<Input<'static>>>;
 
 async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     let stats = lr2021.get_lora_rx_stats().await.expect("RX stats");
@@ -234,9 +175,13 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     if is_rx {
         lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
+        LED_TX_MODE.signal(LedMode::Off);
+        LED_RX_MODE.signal(LedMode::BlinkSlow);
         info!(" -> Switched to RX");
     } else {
         lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");
+        LED_TX_MODE.signal(LedMode::BlinkSlow);
+        LED_RX_MODE.signal(LedMode::Off);
         info!(" -> Switching to FS: ready for TX");
     }
 }

@@ -17,7 +17,7 @@ use embassy_stm32::{mode::Async};
 use embassy_stm32::spi::{Config, Spi};
 use embassy_stm32::{
     exti::ExtiInput,
-    gpio::{Input, Level, Output, Pull, Speed},
+    gpio::{Level, Output, Pull, Speed},
     time::Hertz,
 };
 use embassy_sync::{signal::Signal, watch::Watch};
@@ -26,11 +26,7 @@ use lr2021_apps::{
     ble_adv::{parse_and_print_ble_adv, parse_ble_adv_hdr, print_ble_adv, AddrList, BleAdvType},
     board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress},
     lr2021::{
-        ble::*,
-        radio::{FallbackMode, PacketType, RampTime, RxPath},
-        status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-        system::ChipMode,
-        Lr2021
+        ble::*, radio::{FallbackMode, PacketType, RampTime, RxPath}, status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE}, system::ChipMode, BusyAsync, Lr2021
     }
 };
 
@@ -95,7 +91,6 @@ async fn main(spawner: Spawner) {
     info!("Starting ble_txrx");
 
     // Start tasks to blink the TX/RX leds
-    // and handle the button press to
     let led_tx = Output::new(p.PC1, Level::High, Speed::Low);
     spawner.spawn(blink(led_tx, &LED_TX_MODE)).unwrap();
     LED_TX_MODE.signal(LedMode::Off);
@@ -104,11 +99,12 @@ async fn main(spawner: Spawner) {
     spawner.spawn(blink(led_rx, &LED_RX_MODE)).unwrap();
     LED_RX_MODE.signal(LedMode::BlinkSlow);
 
+    // Start task to check the button press
     let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
     spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
 
     // Control pins
-    let busy = Input::new(p.PB3, Pull::Up);
+    let busy = ExtiInput::new(p.PB3, p.EXTI3, Pull::Up);
     let nreset = Output::new(p.PA0, Level::High, Speed::Low);
 
     let mut irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
@@ -187,13 +183,6 @@ async fn main(spawner: Spawner) {
                     (ButtonPressKind::Long, _) => {
                         role.toggle();
                         switch_mode(&mut lr2021, chan, role.is_rx()).await;
-                        if role.is_tx() {
-                            LED_TX_MODE.signal(LedMode::BlinkSlow);
-                            LED_RX_MODE.signal(LedMode::Off);
-                        } else {
-                            LED_TX_MODE.signal(LedMode::Off);
-                            LED_RX_MODE.signal(LedMode::BlinkSlow);
-                        }
                     }
                     // Double press => change channel
                     (ButtonPressKind::Double, r) => {
@@ -249,7 +238,7 @@ async fn main(spawner: Spawner) {
     }
 }
 
-type Lr2021Stm32 = Lr2021<Input<'static>,Output<'static>,Spi<'static, Async>>;
+type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, Async>, BusyAsync<ExtiInput<'static>>>;
 
 async fn set_ble_chan(lr2021: &mut Lr2021Stm32, chan: AdvChanRf) {
     lr2021.set_ble_params(false, ChannelType::Advertiser, chan.whit_init(), 0x555555, 0x8e89bed6).await.expect("Set params");
@@ -306,12 +295,17 @@ async fn send_req(lr2021: &mut Lr2021Stm32, req_type: BleAdvType, addr: u64, dat
 async fn switch_mode(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, is_rx: bool) {
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     if is_rx {
-        lr2021.set_rx(0, true).await.expect("SetRx");
+        lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
+        LED_TX_MODE.signal(LedMode::Off);
+        LED_RX_MODE.signal(LedMode::BlinkSlow);
         info!(" -> Switched to RX (chan: {})", chan);
     } else {
+        LED_TX_MODE.signal(LedMode::BlinkSlow);
+        LED_RX_MODE.signal(LedMode::Off);
         info!(" -> Switching to FS: ready for TX on {}", chan);
     }
 }
+
 
 async fn read_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8], intr: Intr) -> Option<BlePacketStatusRsp> {
     let lvl = lr2021.get_rx_fifo_lvl().await.expect("RxFifoLvl");

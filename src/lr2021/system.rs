@@ -1,9 +1,8 @@
 use defmt::Format;
-use embassy_time::Duration;
-use embedded_hal::digital::v2::{OutputPin, InputPin};
+use embedded_hal::digital::v2::OutputPin;
 use embedded_hal_async::spi::SpiBus;
 
-use super::{Lr2021, Lr2021Error};
+use super::{BusyPin, Lr2021, Lr2021Error};
 use super::status::{Intr, Status};
 
 pub use super::cmd::cmd_system::*;
@@ -22,8 +21,8 @@ pub enum ChipMode {
     Rx,
 }
 
-impl<I,O,SPI> Lr2021<I,O,SPI> where
-    I: InputPin, O: OutputPin, SPI: SpiBus<u8>
+impl<O,SPI, M> Lr2021<O,SPI, M> where
+    O: OutputPin, SPI: SpiBus<u8>, M: BusyPin
 {
     /// Read status and interrupt from the chip
     pub async fn get_status(&mut self) -> Result<(Status,Intr), Lr2021Error> {
@@ -71,9 +70,7 @@ impl<I,O,SPI> Lr2021<I,O,SPI> where
         let f2 = freqs_4m.get(2).copied().unwrap_or(0);
         let req = calib_fe_cmd(f0,f1,f2);
         let len = 2 + 2*freqs_4m.len();
-        // self.cmd_wr(&req[..len]).await
-        self.cmd_wr(&req[..len]).await?;
-        self.wait_ready(Duration::from_millis(100)).await
+        self.cmd_wr(&req[..len]).await
     }
 
     /// Set Tx power and ramp time
