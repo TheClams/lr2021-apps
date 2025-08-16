@@ -25,9 +25,12 @@ use embassy_sync::{signal::Signal, watch::Watch};
 use lr2021_apps::{
     ble_adv::{parse_and_print_ble_adv, parse_ble_adv_hdr, print_ble_adv, AddrList, BleAdvType},
     board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress},
-    lr2021::{
-        ble::*, radio::{FallbackMode, PacketType, RampTime, RxPath}, status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE}, system::ChipMode, BusyAsync, Lr2021
-    }
+};
+use lr2021::{
+    ble::*,
+    radio::{FallbackMode, PacketType, RampTime, RxPath},
+    status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
+    system::ChipMode, BusyAsync, Lr2021
 };
 
 const VERBOSE: bool = false;

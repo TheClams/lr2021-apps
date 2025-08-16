@@ -5,6 +5,9 @@ version = "0.1.0"
 license = "MIT"
 
 [dependencies]
+lr2021 = {version = "0.1.0", features=["defmt"]}
+# lr2021 = {version = "0.1.0", path = "../lr2021", features=["defmt"]}
+
 embassy-stm32 = { version = "0.2.0", features = [ "defmt", "unstable-pac", "stm32l476rg", "memory-x", "time-driver-any", "exti", "chrono", "dual-bank"]  }
 embassy-sync = { version = "0.7.0", features = ["defmt"] }
 embassy-executor = { version = "0.8.0", features = ["arch-cortex-m", "executor-thread", "defmt"] }
@@ -43,8 +46,6 @@ embassy-usb = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07
 embassy-net-adin1110 = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07f4c54e587f03000bd1a2439c89f70"}
 embassy-net = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07f4c54e587f03000bd1a2439c89f70"}
 embassy-futures = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07f4c54e587f03000bd1a2439c89f70"}
-# embedded-io-async = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07f4c54e587f03000bd1a2439c89f70"}
-# embedded-io = {git = "https://github.com/embassy-rs/embassy", rev = "aba545aea07f4c54e587f03000bd1a2439c89f70"}
 
 [profile.release]
 debug = 2

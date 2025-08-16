@@ -20,9 +20,13 @@ use embassy_stm32::{
 };
 use embassy_sync::{signal::Signal, watch::Watch};
 
-use lr2021_apps::{board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress}, lr2021::{
-    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf}, radio::{PacketType, RampTime, RxPath}, status::{Intr, IRQ_MASK_RX_DONE}, system::ChipMode, BusyBlocking, Lr2021
-}};
+use lr2021_apps::board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress};
+use lr2021::{
+    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf},
+    radio::{PacketType, RampTime, RxPath},
+    status::{Intr, IRQ_MASK_RX_DONE},
+    system::ChipMode, BusyBlocking, Lr2021
+};
 
 /// Generate event when the button is press with short (0) or long (1) duration
 static BUTTON_PRESS: WatchButtonPress = Watch::new();

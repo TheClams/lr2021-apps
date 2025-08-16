@@ -8,7 +8,7 @@ use embassy_stm32::spi::{Config, Spi};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
-use lr2021_apps::lr2021::{system::{self, AdcRes, TempSrc}, Lr2021};
+use lr2021::{system::{self, AdcRes, TempSrc}, Lr2021};
 
 /// Task to blink up to two leds
 #[embassy_executor::task(pool_size = 2)]
