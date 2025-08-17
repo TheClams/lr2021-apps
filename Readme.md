@@ -29,3 +29,12 @@ The applications keeps a list of devices address so that it only displays messag
 The list is limited to 32 addresses and will overwrite the oldest one if a new address is seen.
 
 A very basic message decoding allows to see information from the advertising message.
+
+## ADS-B (OOK modulation)
+The `adsb_rx` application stream valid ADS-B message (i.e. CRC OK) on the UART, and a python script allows to display basic information (callsign, position, ...).
+
+The application controls LED on the LR2021 module and flash red on CRC error and green on CRC valid.
+Three action are possible through the user button:
+ - a double press switch the RF channel between High level (1090MHz) and low level (978MHz)
+ - a single press show RX statistics and clean them
+ - a long press measure ambiant RSSI and adjust the detector threshold

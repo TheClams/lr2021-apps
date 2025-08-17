@@ -53,7 +53,7 @@ async fn main(spawner: Spawner) {
     let spi = Spi::new(p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config);
     let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
 
-    // UART
+    // UART on Virtual Com: 115200bauds, 1 stop bit, no parity, no flow control
     let uart_config = UartConfig::default();
     let mut uart = Uart::new(p.USART2, p.PA3, p.PA2, Irqs, p.DMA1_CH7, p.DMA1_CH6, uart_config).unwrap();
 
