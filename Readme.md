@@ -38,3 +38,7 @@ Three action are possible through the user button:
  - a double press switch the RF channel between High level (1090MHz) and low level (978MHz)
  - a single press show RX statistics and clean them
  - a long press measure ambiant RSSI and adjust the detector threshold
+
+## RSSI
+The `rssi` application does an RSSI measurement between 400 and 1100 MHz in step of ¬100kHz and stream result on the UART.
+The companion python script allow to display the whole spectrum as it is being measured.
