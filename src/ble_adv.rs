@@ -85,12 +85,14 @@ pub enum BleAdvDataType {
     NameFull = 0x09,
     TxPower = 0x0a,
     DeviceId = 0x10,
+    SecurityManagerOob = 0x11,
     ServiceSolicitation = 0x14,
     ServiceData16b = 0x16,
     Appearance = 0x19,
     ServiceData32b = 0x20,
     ServiceData128b = 0x21,
     Uri = 0x24,
+    ChannelMap = 0x28,
     Encrypted = 0x31,
     Manufacturer = 0xff,
     Unknown(u8) = 0,
@@ -111,12 +113,14 @@ impl From<u8> for BleAdvDataType {
             0x09 => BleAdvDataType::NameFull,
             0x0a => BleAdvDataType::TxPower,
             0x10 => BleAdvDataType::DeviceId,
+            0x11 => BleAdvDataType::SecurityManagerOob,
             0x14 => BleAdvDataType::ServiceSolicitation,
             0x16 => BleAdvDataType::ServiceData16b,
             0x19 => BleAdvDataType::Appearance,
             0x20 => BleAdvDataType::ServiceData32b,
             0x21 => BleAdvDataType::ServiceData128b,
             0x24 => BleAdvDataType::Uri,
+            0x28 => BleAdvDataType::ChannelMap,
             0x31 => BleAdvDataType::Encrypted,
             0xff => BleAdvDataType::Manufacturer,
             v => BleAdvDataType::Unknown(v),
@@ -172,6 +176,7 @@ pub enum BleManufacturer {
     Imagination = 0x02F9,
     Xiaomi = 0x038F,
     SkullCandy = 0x07C9,
+    Logitech = 0x01DA,
     Unknown(u16) = 0xFFFF,
 }
 
@@ -191,6 +196,7 @@ impl From<&[u8]> for BleManufacturer {
             &[0x89,0x00] => BleManufacturer::GnHearing,
             &[0x30,0x00] => BleManufacturer::STMicroelectronics,
             &[0x2D,0x01] => BleManufacturer::Sony,
+            &[0xDA,0x01] => BleManufacturer::Logitech,
             &[0xF9,0x02] => BleManufacturer::Imagination,
             &[0x8F,0x03] => BleManufacturer::Xiaomi,
             &[0x07,0xC9] => BleManufacturer::SkullCandy,
@@ -218,6 +224,7 @@ impl Format for BleManufacturer {
             BleManufacturer::Imagination => write!(fmt, "Imagination"),
             BleManufacturer::Xiaomi => write!(fmt, "Xiaomi"),
             BleManufacturer::SkullCandy => write!(fmt, "SkullCandy"),
+            BleManufacturer::Logitech => write!(fmt, "Logitech"),
             BleManufacturer::Unknown(id) => write!(fmt, "{:04x}", id)
         }
     }
@@ -231,6 +238,7 @@ pub enum BleUuid16b {
     Hid = 0x1812,
     PhilipsLighting = 0xFE0F,
     Google = 0xFEF3,
+    Logitech = 0xFE61,
     Unknown(u16) = 0xFFFF,
 }
 
@@ -243,6 +251,7 @@ impl From<&[u8]> for BleUuid16b {
             &[0x12,0x18] => BleUuid16b::Hid,
             &[0x0F,0xFE] |
             &[0x4B,0xFE] => BleUuid16b::PhilipsLighting,
+            &[0x61,0xFE] => BleUuid16b::Logitech,
             &[0x2C,0xFE] |
             &[0xF3,0xFE] |
             &[0xF4,0xFE] |
@@ -261,6 +270,7 @@ impl Format for BleUuid16b {
             BleUuid16b::GenericAudio => write!(fmt, "Generic Audio"),
             BleUuid16b::PhilipsLighting => write!(fmt, "Philips Lighting"),
             BleUuid16b::Google => write!(fmt, "Google"),
+            BleUuid16b::Logitech => write!(fmt, "Logitech"),
             BleUuid16b::Unknown(id) => write!(fmt, "{:04x}", id)
         }
     }
@@ -363,14 +373,22 @@ pub fn print_ble_adv_blocks(mut idx: usize, bytes: &[u8]) {
                 // BleAdvDataType::ServiceData128b => todo!(),
                 // BleAdvDataType::Appearance => todo!(),
                 // BleAdvDataType::Uri            => todo!(),
+                BleAdvDataType::SecurityManagerOob => {
+                    let flags = bytes.get(idx+2).copied().unwrap_or(0);
+                    let oob = if (flags & 1) != 0 {"Present"} else {"Absent"};
+                    let le = if (flags & 2) != 0 {"LE"} else {""};
+                    let used = if (flags & 4) != 0 {"Used"} else {""};
+                    let addr = if (flags & 8) != 0 {"Random"} else {"Public"};
+                    info!("  - Security OOB: {} | OOB {} {} {}, {} address", t, oob, le, used, addr);
+                }
                 BleAdvDataType::Manufacturer => {
                     let m : BleManufacturer = bytes[idx+2..idx+4].into();
                     info!("  - {}: {} | {:02x}", t, m, bytes[idx+4..]);
                 }
-                BleAdvDataType::Unknown(v) => warn!("  - Invalid datatype {}", v),
                 BleAdvDataType::NameShort |
                 BleAdvDataType::NameFull => info!("  - {}: {=[u8]:a}", t, bytes[idx+2..idx+l+1]),
                 BleAdvDataType::TxPower => info!("  - {}: {}", t, bytes[idx+2]),
+                BleAdvDataType::Unknown(v) => warn!("  - Invalid datatype {}", v),
                 _ =>  info!("  - {}: {=[u8]:02x}", t, bytes[idx+2..idx+l+1]),
             }
 
