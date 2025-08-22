@@ -7,7 +7,6 @@
 // Short press while in TX mode, send an packet advertising packet
 // Short press while in RX mode, switch to scan mode on all recently seens address
 
-
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -131,9 +130,6 @@ async fn main(spawner: Spawner) {
     // Select Out-of-band channel to avoid immediately picking BLE traffic and allow board-to-board communication
     let mut chan = AdvChanRf::ChanOob;
 
-    // Create data buffer
-    let mut data = [0;128];
-
     // Wait for a button press for actions
     let mut button_press = BUTTON_PRESS.receiver().unwrap();
 
@@ -173,7 +169,7 @@ async fn main(spawner: Spawner) {
             Either::First(press) => {
                 match (press, role) {
                     // Short press in TX => send a packet
-                    (ButtonPressKind::Short, BoardRole::Tx) => send_beacon(&mut lr2021, &mut data).await,
+                    (ButtonPressKind::Short, BoardRole::Tx) => send_beacon(&mut lr2021).await,
                     // Short press in RX => Show stats
                     (ButtonPressKind::Short, BoardRole::Rx|BoardRole::TxAuto) => {
                         let stat = lr2021.get_ble_rx_stats_adv().await.expect("RX Stats");
@@ -208,27 +204,26 @@ async fn main(spawner: Spawner) {
                 // Make sure the FIFO contains data
                 let lvl = lr2021.get_rx_fifo_lvl().await.expect("RxFifoLvl");
                 if lvl > 0 && intr.rx_done() {
-                    if let Some(pkt_status) = read_pkt(&mut lr2021, &mut data, intr).await {
+                    if let Some(pkt_status) = read_pkt(&mut lr2021, intr).await {
                         let nb_byte = pkt_status.pkt_len().min(128) as usize;
-                        let pkt = &data[..nb_byte];
                         let rssi_dbm = pkt_status.rssi_avg()>>1;
                         if role==BoardRole::TxAuto {
                             // In Tx Auto mode, parse the header
-                            if let Some((hdr, addr)) = parse_ble_adv_hdr(pkt) {
+                            if let Some((hdr, addr)) = parse_ble_adv_hdr(&lr2021.buffer()[..nb_byte]) {
                                 lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
                                 match hdr.get_type() {
                                     BleAdvType::AdvInd |
-                                    BleAdvType::AdvDirectInd => send_req(&mut lr2021, BleAdvType::ConnectInd, addr, &mut data).await,
-                                    BleAdvType::AdvScanInd   => send_req(&mut lr2021, BleAdvType::ScanReq, addr, &mut data).await,
+                                    BleAdvType::AdvDirectInd => send_req(&mut lr2021, BleAdvType::ConnectInd, addr).await,
+                                    BleAdvType::AdvScanInd   => send_req(&mut lr2021, BleAdvType::ScanReq, addr).await,
                                     _ => {
-                                        print_ble_adv(&mut addr_seen, pkt, hdr, addr, rssi_dbm);
+                                        print_ble_adv(&mut addr_seen, &lr2021.buffer()[..nb_byte], hdr, addr, rssi_dbm);
                                     }
                                 }
                                 // Back to RX Continuous
                                 lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
                             }
                         } else {
-                            parse_and_print_ble_adv(&mut addr_seen, pkt, rssi_dbm, VERBOSE);
+                            parse_and_print_ble_adv(&mut addr_seen, &lr2021.buffer()[..nb_byte], rssi_dbm, VERBOSE);
                         }
                         // show_rx_pkt(&mut lr2021, &mut data, &mut addr_seen, intr, VERBOSE).await;
                         if !intr.crc_error() {
@@ -268,29 +263,29 @@ async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, addr_seen: &A
     }
 }
 
-async fn send_beacon(lr2021: &mut Lr2021Stm32, data: &mut [u8]) {
+async fn send_beacon(lr2021: &mut Lr2021Stm32) {
     let len = ADV_BEACON.len();
     // Create payload and send it to the TX FIFO
-    data[0..len].copy_from_slice(&ADV_BEACON);
-    lr2021.wr_tx_fifo(&mut data[..len]).await.expect("FIFO write");
+    lr2021.buffer_mut().copy_from_slice(&ADV_BEACON);
+    lr2021.wr_tx_fifo(len).await.expect("FIFO write");
     info!("[TX] Sending beacon");
     lr2021.set_ble_tx(len as u8).await.expect("SetTx");
     // Listen for response for 10ms (unit ~ 30.50us)
     lr2021.set_rx(328, true).await.expect("SetRx");
 }
 
-async fn send_req(lr2021: &mut Lr2021Stm32, req_type: BleAdvType, addr: u64, data: &mut [u8]) {
+async fn send_req(lr2021: &mut Lr2021Stm32, req_type: BleAdvType, addr: u64) {
     let len = 14;
-    data[0] = req_type as u8;
-    data[1] = 12;
-    data[2..8].copy_from_slice(&[0xa4, 0x63, 0xef, 0x8c, 0x89, 0xe6]);
-    data[8 ] = ((addr >> 40) & 0xFF) as u8;
-    data[9 ] = ((addr >> 32) & 0xFF) as u8;
-    data[10] = ((addr >> 24) & 0xFF) as u8;
-    data[11] = ((addr >> 16) & 0xFF) as u8;
-    data[12] = ((addr >>  8) & 0xFF) as u8;
-    data[13] = ( addr        & 0xFF) as u8;
-    lr2021.wr_tx_fifo(&mut data[..len]).await.expect("FIFO write");
+    lr2021.buffer_mut()[0] = req_type as u8;
+    lr2021.buffer_mut()[1] = 12;
+    lr2021.buffer_mut()[2..8].copy_from_slice(&[0xa4, 0x63, 0xef, 0x8c, 0x89, 0xe6]);
+    lr2021.buffer_mut()[8 ] = ((addr >> 40) & 0xFF) as u8;
+    lr2021.buffer_mut()[9 ] = ((addr >> 32) & 0xFF) as u8;
+    lr2021.buffer_mut()[10] = ((addr >> 24) & 0xFF) as u8;
+    lr2021.buffer_mut()[11] = ((addr >> 16) & 0xFF) as u8;
+    lr2021.buffer_mut()[12] = ((addr >>  8) & 0xFF) as u8;
+    lr2021.buffer_mut()[13] = ( addr        & 0xFF) as u8;
+    lr2021.wr_tx_fifo(len).await.expect("FIFO write");
     info!("[TX] Sending Scan request to {:06x}", addr);
     lr2021.set_ble_tx(len as u8).await.expect("SetTx");
 }
@@ -310,7 +305,7 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, is_rx: bool) {
 }
 
 
-async fn read_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8], intr: Intr) -> Option<BlePacketStatusRsp> {
+async fn read_pkt(lr2021: &mut Lr2021Stm32, intr: Intr) -> Option<BlePacketStatusRsp> {
     let lvl = lr2021.get_rx_fifo_lvl().await.expect("RxFifoLvl");
     let pkt_status = lr2021.get_ble_packet_status().await.expect("PktStatus");
     let nb_byte = pkt_status.pkt_len().min(128) as usize;
@@ -319,6 +314,6 @@ async fn read_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8], intr: Intr) -> Opti
         return None;
     }
 
-    lr2021.rd_rx_fifo(&mut data[..nb_byte]).await.expect("RX FIFO Read");
+    lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
     Some(pkt_status)
 }

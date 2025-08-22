@@ -2,6 +2,7 @@
 Basic script to parse ADS-B message from serial port coming from the adsb_rx binary
 Check https://globe.adsbexchange.com for live view of aircraft
 '''
+import sys
 import time
 import pyModeS
 from pyModeS.streamer.decode import Decode
@@ -9,7 +10,7 @@ from pyModeS.streamer.decode import Decode
 import serial
 
 latlon = [0.0, 0.0] # Enter your position
-com_port = 'COM3' # Set Serial port
+com_ports = ['COM3', 'COM4', 'COM8', 'COM10'] # Set Serial port
 
 adsb_msg : list[str] = []
 adsb_ts  : list[float] = []
@@ -44,9 +45,16 @@ def to_float(s) -> float:
 # Get Com port
 ser = serial.Serial()
 ser.baudrate = 115200
-ser.port = com_port
-ser.open()
-print(f'Listening on {ser.port}')
+for port in com_ports:
+    ser.port = port
+    try :
+        ser.open()
+        print(f'Listening on {ser.port}')
+        break
+    except:
+        continue
+if not ser.is_open:
+    sys.exit('Unable to open an UART')
 
 decode = Decode(latlon)
 
