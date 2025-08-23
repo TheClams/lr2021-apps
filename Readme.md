@@ -17,6 +17,14 @@ The `lora_txrx` demonstrate a simple packet TX/RX between 2 boards:
  * single press in TX sends a packet
  * single press in RX show some stats
 
+## FLRC
+
+The `flrc_txrx` demonstrate a simple packet TX/RX between 2 boards. The RX is configure to accept packet with 3 different syncwords.
+ * long press allow to change the board role (TX or RX)
+ * single press in TX sends a packet
+ * double press in TX change the syncword (iterate over 3 predefine value)
+ * single press in RX show some stats
+
 ## BLE
 
 The `ble_txrx` is a very basic BLE sniffer:
