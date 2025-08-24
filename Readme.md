@@ -48,5 +48,8 @@ Three action are possible through the user button:
  - a long press measure ambiant RSSI and adjust the detector threshold
 
 ## RSSI
-The `rssi` application does an RSSI measurement between 400 and 1100 MHz in step of ¬100kHz and stream result on the UART.
-The companion python script allow to display the whole spectrum as it is being measured.
+The `rssi` application does an RSSI measurement between 400 and 1100 MHz in step of 250kHz and stream result on the UART.
+The companion python script allow to display the whole spectrum as it is being measured, and can send command to the board:
+ - "r[min]-[max] set the range in MHz
+ - "s[step]: set the frequency step in kHz
+ - "stop": stop eand exit the script
