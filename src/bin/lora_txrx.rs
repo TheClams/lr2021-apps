@@ -123,9 +123,6 @@ async fn main(spawner: Spawner) {
     // Set DIO9 as IRQ for RX Done
     lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
 
-    // Create data buffer
-    let mut data = [0;16];
-
     // Wait for a button press for actions
     let mut button_press = BUTTON_PRESS.receiver().unwrap();
 
@@ -137,7 +134,10 @@ async fn main(spawner: Spawner) {
                     // Short press in RX => clear stats
                     (ButtonPressKind::Short, BoardRole::Rx) => show_and_clear_rx_stats(&mut lr2021).await,
                     // Short press in TX => send a packet
-                    (ButtonPressKind::Short, BoardRole::Tx) => send_pkt(&mut lr2021, &mut pkt_id, &mut data).await,
+                    (ButtonPressKind::Short, BoardRole::Tx) => {
+                        send_pkt(&mut lr2021, &mut pkt_id).await;
+                        LED_TX_MODE.signal(LedMode::Flash);
+                    }
                     // Long press: switch role TX/RX
                     (ButtonPressKind::Long, _) => {
                         role.toggle();
@@ -147,7 +147,10 @@ async fn main(spawner: Spawner) {
                 }
             }
             // RX Interrupt
-            Either::Second(_) => show_rx_pkt(&mut lr2021, &mut data).await,
+            Either::Second(_) => {
+                LED_RX_MODE.signal(LedMode::Flash);
+                show_rx_pkt(&mut lr2021).await;
+            }
         }
     }
 }
@@ -164,13 +167,14 @@ async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     );
 }
 
-async fn send_pkt(lr2021: &mut Lr2021Stm32, pkt_id: &mut u8, data: &mut [u8]) {
+async fn send_pkt(lr2021: &mut Lr2021Stm32, pkt_id: &mut u8) {
     info!("[TX] Sending packet {}", *pkt_id);
+    let len = PLD_SIZE as usize;
     // Create payload and send it to the TX FIFO
-    for (i,d) in data.iter_mut().take(PLD_SIZE.into()).enumerate() {
+    for (i,d) in lr2021.buffer_mut().iter_mut().take(len).enumerate() {
         *d = pkt_id.wrapping_add(i as u8);
     }
-    lr2021.wr_tx_fifo(&mut data[..PLD_SIZE.into()]).await.expect("FIFO write");
+    lr2021.wr_tx_fifo(len).await.expect("FIFO write");
     lr2021.set_tx(0).await.expect("SetTx");
     *pkt_id += 1;
 }
@@ -190,16 +194,16 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     }
 }
 
-async fn show_rx_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8]) {
+async fn show_rx_pkt(lr2021: &mut Lr2021Stm32) {
     let pkt_len = lr2021.get_rx_pkt_len().await.expect("RX Fifo level");
     let nb_byte = pkt_len.min(16) as usize; // Make sure to not read more than the local buffer size
-    lr2021.rd_rx_fifo(&mut data[..nb_byte]).await.expect("RX FIFO Read");
+    lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
     let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
     let status = lr2021.get_lora_packet_status_adv().await.expect("RX status");
     let snr = status.snr_pkt();
     let snr_frac = (snr&3) * 25;
     info!("[RX] Payload = {:02x} | intr={:08x} | RSSI=-{}dBm, SNR={}.{:02}, FEI={}",
-        data[..nb_byte],
+        lr2021.buffer()[..nb_byte],
         intr.value(),
         status.rssi_pkt()>>1,
         snr>>2, snr_frac,

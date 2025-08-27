@@ -5,7 +5,8 @@ import threading
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
-COM_PORTS : list[str] = ['COM8', 'COM10'] # Set Serial port
+# List of serial ports to try
+COM_PORTS : list[str] = ['COM3', 'COM4', 'COM8', 'COM10']
 
 stop_event = threading.Event()
 

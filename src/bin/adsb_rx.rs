@@ -33,7 +33,7 @@ use lr2021_apps::{
 };
 use lr2021::{
     ook::*,
-    radio::{PacketType, RxPath},
+    radio::RxPath,
     status::{Intr, IRQ_MASK_RX_DONE},
     system::ChipMode, BusyAsync, Lr2021
 };
@@ -114,9 +114,6 @@ async fn main(spawner: Spawner) {
     // Select Out-of-band channel to avoid immediately picking BLE traffic and allow board-to-board communication
     let mut chan = AdsbChan::HighLevel;
 
-    // Create data buffer
-    let mut data = [0;14];
-
     // Wait for a button press for actions
     let mut button_press = BUTTON_PRESS.receiver().unwrap();
 
@@ -131,7 +128,6 @@ async fn main(spawner: Spawner) {
     }
 
     // Configure demodulator
-    lr2021.set_packet_type(PacketType::Ook).await.expect("Setting packet type to BLE");
     lr2021.set_ook_adsb().await.expect("SetOokAdsb");
     lr2021.force_crc_out().await.expect("CrcOut"); // Output CRC even if already checked, mainly for debug
 
@@ -184,9 +180,9 @@ async fn main(spawner: Spawner) {
                     // warn!("CRC KO | -{}dBm | Fifo {}", rssi_dbm, lvl);
                 }
                 else if lvl > 0 && intr.rx_done() {
-                    if let Some(pkt_status) = read_pkt(&mut lr2021, &mut data, intr).await {
+                    if let Some(pkt_status) = read_pkt(&mut lr2021, intr).await {
                         let nb_byte = pkt_status.pkt_len().min(14) as usize;
-                        let pkt = &data[..nb_byte];
+                        let pkt = &lr2021.buffer()[..nb_byte];
                         let rssi_dbm = pkt_status.rssi_high()>>1;
                         LED_OK.signal(LedMode::Flash);
                         info!("CRC OK: {=[u8]:02x} | -{}dBm ", pkt, rssi_dbm);
@@ -205,7 +201,7 @@ async fn main(spawner: Spawner) {
 
 type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, Async>, BusyAsync<ExtiInput<'static>>>;
 
-async fn read_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8], intr: Intr) -> Option<OokPacketStatusRsp> {
+async fn read_pkt(lr2021: &mut Lr2021Stm32, intr: Intr) -> Option<OokPacketStatusRsp> {
     let lvl = lr2021.get_rx_fifo_lvl().await.expect("RxFifoLvl");
     let pkt_status = lr2021.get_ook_packet_status().await.expect("PktStatus");
     let nb_byte = pkt_status.pkt_len().min(128) as usize;
@@ -213,8 +209,7 @@ async fn read_pkt(lr2021: &mut Lr2021Stm32, data: &mut [u8], intr: Intr) -> Opti
         warn!("No data in fifo ({}) | {}", nb_byte, intr);
         return None;
     }
-
-    lr2021.rd_rx_fifo(&mut data[..nb_byte]).await.expect("RX FIFO Read");
+    lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
     Some(pkt_status)
 }
 
