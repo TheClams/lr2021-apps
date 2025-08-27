@@ -12,10 +12,24 @@ It is associated with a few [blog posts](https://theclams.github.io/).
 
 ## LoRa
 
-The `lora_txrx` demonstrate a simple packet TX/RX between 2 boards:
+The `lora_txrx` demonstrate a simple packet TX/RX between 2 boards using LoRa (SF5/BW1000):
  * long press allow to change the board role (TX or RX)
  * single press in TX sends a packet
  * single press in RX show some stats
+
+## FSK
+
+The `fsk_txrx` demonstrate a simple packet TX/RX between 2 boards in GFSK:
+ * long press allow to change the board role (TX or RX)
+ * single press in TX sends a packet
+ * single press in RX show some stats
+ * Double press in TX toggle auto TX mode. When auto TX is enable the board send a packet every 250ms
+
+The application can also be controlled through UART:
+ * 's' to switch role (TX/RX)
+ * 'a' to toggle auto mode
+ * 't' to transmit a packet
+ * 'h' to change the modulation index
 
 ## FLRC
 

@@ -679,9 +679,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "lr2021"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc981082a4019da49e15ba6a2d7f940907aad562ff80f3fa5618af0022c69842"
+version = "0.5.0"
 dependencies = [
  "defmt 1.0.1",
  "embassy-embedded-hal",
