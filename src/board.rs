@@ -1,8 +1,7 @@
 use defmt::Format;
-use embassy_stm32::{exti::ExtiInput, gpio::Output};
+use embassy_stm32::{exti::ExtiInput, gpio::Output, spi::Spi};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch, signal::Signal};
 use embassy_time::{with_timeout, Duration, Timer};
-
 
 /// Board role: TX or RX
 #[derive(Debug, Clone, Copy, Format, PartialEq)]
@@ -183,3 +182,34 @@ pub async fn blink(mut led: Output<'static>, signal: &'static SignalLedMode) {
         }
     }
 }
+
+
+// Wrapper around blocking SPI to use the non-DMA SPI with the LR2021 driver
+pub struct SpiWrapper(pub Spi<'static,embassy_stm32::mode::Blocking>);
+
+impl embedded_hal_1::spi::ErrorType for SpiWrapper {
+    type Error = embassy_stm32::spi::Error;
+}
+
+impl<W: embassy_stm32::spi::Word> embedded_hal_async::spi::SpiBus<W> for SpiWrapper {
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    async fn write(&mut self, words: &[W]) -> Result<(), Self::Error> {
+        self.0.blocking_write(words)
+    }
+
+    async fn read(&mut self, words: &mut [W]) -> Result<(), Self::Error> {
+        self.0.blocking_read(words)
+    }
+
+    async fn transfer(&mut self, read: &mut [W], write: &[W]) -> Result<(), Self::Error> {
+        self.0.blocking_transfer(read, write)
+    }
+
+    async fn transfer_in_place(&mut self, words: &mut [W]) -> Result<(), Self::Error> {
+        self.0.blocking_transfer_in_place(words)
+    }
+}
+

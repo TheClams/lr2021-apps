@@ -67,3 +67,7 @@ The companion python script allow to display the whole spectrum as it is being m
  - "r[min]-[max] set the range in MHz
  - "s[step]: set the frequency step in kHz
  - "stop": stop eand exit the script
+
+## ZWave
+The demo implements some very basic sniffing capability (on the debug port only) as-well as a rough join network procedure.
+A double push allow switching between the two modes.

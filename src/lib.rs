@@ -2,3 +2,4 @@
 
 pub mod ble_adv;
 pub mod board;
+pub mod zwave_utils;
