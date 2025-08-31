@@ -1,7 +1,114 @@
-use defmt::Format;
-use embassy_stm32::{exti::ExtiInput, gpio::Output, spi::Spi};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch, signal::Signal};
+use defmt::{info, Format};
+use embassy_executor::Spawner;
+use embassy_stm32::{
+    bind_interrupts,
+    exti::ExtiInput,
+    gpio::{Level, Output, Pull, Speed},
+    mode::Async, spi::{Config as SpiConfig, Spi},
+    time::Hertz,
+    usart::{Config as UartConfig, Uart}
+};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal, watch::{Receiver, Watch}};
 use embassy_time::{with_timeout, Duration, Timer};
+use lr2021::{BusyAsync, Lr2021};
+
+bind_interrupts!(struct UartIrqs {
+    USART2 => embassy_stm32::usart::InterruptHandler<embassy_stm32::peripherals::USART2>;
+});
+
+pub type Lr2021Stm32 = Lr2021<Output<'static>,SpiWrapper, BusyAsync<ExtiInput<'static>>>;
+
+pub struct BoardNucleoL476Rg {
+    pub lr2021: Lr2021Stm32,
+    pub irq: ExtiInput<'static>,
+    pub uart: Uart<'static, Async>
+}
+
+/// Generate event when the button is press with short (0) or long (1) duration
+type WatchButtonPress = Watch<CriticalSectionRawMutex, ButtonPressKind, 3>;
+type ButtonRcvr = Receiver<'static, CriticalSectionRawMutex, ButtonPressKind, 3>;
+static BUTTON_PRESS: WatchButtonPress = Watch::new();
+/// Led modes
+static LED_RED_MODE: SignalLedMode = Signal::new();
+static LED_GREEN_MODE: SignalLedMode = Signal::new();
+
+impl BoardNucleoL476Rg {
+
+    // Pin mapping
+    // Name  | Connector | Nucleo
+    // NRST  | CN8 A0    | PA0
+    // SCK   | CN5 D13   | PA5
+    // MISO  | CN5 D12   | PA6
+    // MOSI  | CN5 D11   | PA7
+    // NSS   | CN9 D7    | PA8
+    // BUSY  | CN9 D3    | PB3
+    // DIO7  | CN8 A3    | PB0
+    // DIO8  | CN8 A1    | PA1
+    // DIO9  | CN9 D5    | PB4
+    // DIO10 | CN9 D4    | PB5
+    // DIO11 | CN5 D8    | PA9
+    // RFSW0 | CN9 D0    | PA3
+    // RXSW1 | CN9 D1    | PA2
+    // LEDTX | CN8 A5    | PC0
+    // LEDRX | CN8 A4    | PC1
+
+    pub async fn init(spawner: &Spawner) -> BoardNucleoL476Rg {
+        let p = embassy_stm32::init(Default::default());
+
+        // Leds & buttons
+        let led_red = Output::new(p.PC1, Level::High, Speed::Low);
+        let led_green = Output::new(p.PC0, Level::High, Speed::Low);
+        let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
+
+        // Start the tasks
+        spawner.spawn(blink(led_red, &LED_RED_MODE)).unwrap();
+        spawner.spawn(blink(led_green, &LED_GREEN_MODE)).unwrap();
+        spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
+        LED_RED_MODE.signal(LedMode::Off);
+        LED_GREEN_MODE.signal(LedMode::Off);
+
+        // Control pins
+        let busy = ExtiInput::new(p.PB3, p.EXTI3, Pull::Up);
+        let nreset = Output::new(p.PA0, Level::High, Speed::Low);
+
+        let irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
+
+        // UART on Virtual Com: 115200bauds, 1 stop bit, no parity, no flow control
+        let mut uart_config = UartConfig::default();
+        uart_config.baudrate = 444_444;
+        let uart = Uart::new(p.USART2, p.PA3, p.PA2, UartIrqs, p.DMA1_CH7, p.DMA1_CH6, uart_config).unwrap();
+
+        // SPI
+        let mut spi_config = SpiConfig::default();
+        spi_config.frequency = Hertz(4_000_000);
+        let spi = SpiWrapper(Spi::new_blocking(p.SPI1, p.PA5, p.PA7, p.PA6, spi_config));
+        // let spi = Spi::new(
+        //     p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config,
+        // );
+        let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
+
+        // Create driver and reset board
+        let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
+        lr2021.reset().await.expect("Resetting chip !");
+
+        // Check version
+        let version = lr2021.get_version().await.expect("Reading firmware version !");
+        info!("FW Version {}", version);
+        BoardNucleoL476Rg{lr2021, irq, uart}
+    }
+
+    pub fn get_button_evt() -> ButtonRcvr {
+        BUTTON_PRESS.receiver().unwrap()
+    }
+
+    pub fn led_red_set(mode: LedMode) {
+        LED_RED_MODE.signal(mode)
+    }
+
+    pub fn led_green_set(mode: LedMode) {
+        LED_GREEN_MODE.signal(mode)
+    }
+}
 
 /// Board role: TX or RX
 #[derive(Debug, Clone, Copy, Format, PartialEq)]
@@ -55,8 +162,6 @@ impl ButtonPressKind {
        *self==ButtonPressKind::Short
     }
 }
-
-pub type WatchButtonPress = Watch<CriticalSectionRawMutex, ButtonPressKind, 3>;
 
 /// Task to handle the user interface:
 ///   - a long press change the board mode (TX or RX)

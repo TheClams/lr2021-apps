@@ -11,28 +11,14 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_stm32::mode::Async;
-use embassy_stm32::spi::{Config, Spi};
-use embassy_stm32::{
-    exti::ExtiInput,
-    gpio::{Level, Output, Pull, Speed},
-    time::Hertz,
-};
-use embassy_sync::{signal::Signal, watch::Watch};
 
-use lr2021_apps::board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress};
+use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
     flrc::*,
     radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::ChipMode, BusyAsync, Lr2021, PulseShape
+    system::ChipMode, PulseShape
 };
-
-/// Generate event when the button is press with short (0) or long (1) duration
-static BUTTON_PRESS: WatchButtonPress = Watch::new();
-/// Led modes
-static LED_TX_MODE: SignalLedMode = Signal::new();
-static LED_RX_MODE: SignalLedMode = Signal::new();
 
 const PLD_SIZE : u16 = 10;
 
@@ -65,46 +51,13 @@ impl SwSel {
     }
 }
 
-
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
     info!("Starting flrc_txrx");
 
-    // Start tasks to blink the TX/RX leds
-    // and handle the button press to
-    let led_tx = Output::new(p.PC1, Level::High, Speed::Low);
-    spawner.spawn(blink(led_tx, &LED_TX_MODE)).unwrap();
-    LED_TX_MODE.signal(LedMode::Off);
-
-    let led_rx = Output::new(p.PC0, Level::High, Speed::Low);
-    spawner.spawn(blink(led_rx, &LED_RX_MODE)).unwrap();
-    LED_RX_MODE.signal(LedMode::BlinkSlow);
-
-    let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
-    spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
-
-    // Control pins
-    let busy = ExtiInput::new(p.PB3, p.EXTI3, Pull::Up);
-    let nreset = Output::new(p.PA0, Level::High, Speed::Low);
-
-    let mut irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
-
-    // SPI
-    let mut spi_config = Config::default();
-    spi_config.frequency = Hertz(4_000_000);
-    let spi = Spi::new(
-        p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config,
-    );
-    let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
-
-    // Create driver and reset board
-    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
-    lr2021.reset().await.expect("Resetting chip !");
-
-    // Check version
-    let version = lr2021.get_version().await.expect("Reading firmware version !");
-    info!("FW Version {}", version);
+    let board = BoardNucleoL476Rg::init(&spawner).await;
+    let mut lr2021 = board.lr2021;
+    let mut irq = board.irq;
 
     // Packet ID: correspond to first byte sent
     let mut pkt_id = 0_u8;
@@ -138,6 +91,7 @@ async fn main(spawner: Spawner) {
 
     // Start RX continuous
     lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRX");
+    BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
 
     // Set DIO7 as IRQ for RX Done
     lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_TX_DONE|IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
@@ -148,7 +102,7 @@ async fn main(spawner: Spawner) {
     let mut role = BoardRole::Rx;
 
     // Wait for a button press for actions
-    let mut button_press = BUTTON_PRESS.receiver().unwrap();
+    let mut button_press = BoardNucleoL476Rg::get_button_evt();
     loop {
         match select(button_press.changed(), irq.wait_for_rising_edge()).await {
             Either::First(press) => {
@@ -177,20 +131,18 @@ async fn main(spawner: Spawner) {
             Either::Second(_) => {
                 let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
                 if intr.tx_done() {
-                    LED_TX_MODE.signal(LedMode::Flash);
+                    BoardNucleoL476Rg::led_red_set(LedMode::Flash);
                 }
                 if /*lvl > 0 && */intr.rx_done() {
                     show_rx_pkt(&mut lr2021, &mut data, intr).await;
                     if !intr.crc_error() {
-                        LED_RX_MODE.signal(LedMode::Flash);
+                        BoardNucleoL476Rg::led_green_set(LedMode::Flash);
                     }
                 }
             }
         }
     }
 }
-
-type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, Async>, BusyAsync<ExtiInput<'static>>>;
 
 async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     let stats = lr2021.get_flrc_rx_stats_adv().await.expect("RX stats");
@@ -219,12 +171,12 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     if is_rx {
         lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
         info!(" -> Switched to RX");
-        LED_TX_MODE.signal(LedMode::Off);
-        LED_RX_MODE.signal(LedMode::BlinkSlow);
+        BoardNucleoL476Rg::led_red_set(LedMode::Off);
+        BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
     } else {
         info!(" -> Switching to FS: ready for TX");
-        LED_TX_MODE.signal(LedMode::BlinkSlow);
-        LED_RX_MODE.signal(LedMode::Off);
+        BoardNucleoL476Rg::led_red_set(LedMode::BlinkSlow);
+        BoardNucleoL476Rg::led_green_set(LedMode::Off);
     }
 }
 

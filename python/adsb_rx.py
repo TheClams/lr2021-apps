@@ -2,6 +2,9 @@
 Basic script to parse ADS-B message from serial port coming from the adsb_rx binary
 Check https://globe.adsbexchange.com for live view of aircraft
 '''
+
+# pyright: reportUnknownArgumentType=false, reportUnknownVariableType=false
+
 import sys
 import time
 import pyModeS
@@ -34,7 +37,7 @@ def handle_messages(msg: str, t: float): # Check format of messages used in sour
             del commb_msg[0]
             del commb_ts[0]
 
-def to_float(s) -> float:
+def to_float(s: str) -> float:
     try:
         f = float(s)
         return f
@@ -44,7 +47,7 @@ def to_float(s) -> float:
 
 # Get Com port
 ser = serial.Serial()
-ser.baudrate = 115200
+ser.baudrate = 444444
 for port in com_ports:
     ser.port = port
     try :

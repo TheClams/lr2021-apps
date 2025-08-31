@@ -11,27 +11,14 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_stm32::spi::{Config, Spi};
-use embassy_stm32::{
-    exti::ExtiInput,
-    gpio::{Level, Output, Pull, Speed},
-    time::Hertz,
-};
-use embassy_sync::{signal::Signal, watch::Watch};
 
-use lr2021_apps::{board::{blink, user_intf, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress}, zwave_utils::{ManufacturerCmd, VersionCmd, ZwaveCmd}};
-use lr2021_apps::zwave_utils::{ProtCmd, ZwaveHdrType, ZwavePhyHdr};
+use lr2021_apps::board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32};
+// use lr2021_apps::board::*;
+use lr2021_apps::zwave_utils::{ProtCmd, ZwaveHdrType, ZwavePhyHdr, ManufacturerCmd, VersionCmd, ZwaveCmd};
 use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxPath};
 use lr2021::status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE};
 use lr2021::system::ChipMode;
 use lr2021::zwave::*;
-use lr2021::{BusyAsync, Lr2021};
-
-/// Generate event when the button is press with short (0) or long (1) duration
-static BUTTON_PRESS: WatchButtonPress = Watch::new();
-/// Led modes
-static LED_RED_MODE: SignalLedMode = Signal::new();
-static LED_GREEN_MODE: SignalLedMode = Signal::new();
 
 const NPU_NODE_INFO : [u8;11] = [
     0x01, 0x01, // OpCode NodeInfo command
@@ -73,44 +60,10 @@ struct BoardState {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
     info!("Starting zwave_txrx");
-
-    // Start tasks to blink the TX/RX leds
-    // and handle the button press to
-    let led_red = Output::new(p.PC1, Level::High, Speed::Low);
-    spawner.spawn(blink(led_red, &LED_RED_MODE)).unwrap();
-    LED_RED_MODE.signal(LedMode::Off);
-
-    let led_green = Output::new(p.PC0, Level::High, Speed::Low);
-    spawner.spawn(blink(led_green, &LED_GREEN_MODE)).unwrap();
-    LED_GREEN_MODE.signal(LedMode::BlinkSlow);
-
-    let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
-    spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
-
-    // Control pins
-    let busy = ExtiInput::new(p.PB3, p.EXTI3, Pull::Up);
-    let nreset = Output::new(p.PA0, Level::High, Speed::Low);
-
-    let mut irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
-
-    // SPI
-    let mut spi_config = Config::default();
-    spi_config.frequency = Hertz(4_000_000);
-    let spi = lr2021_apps::board::SpiWrapper(Spi::new_blocking(p.SPI1, p.PA5, p.PA7, p.PA6, spi_config));
-    // let spi = Spi::new(
-    //     p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config,
-    // );
-    let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
-
-    // Create driver and reset board
-    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
-    lr2021.reset().await.expect("Resetting chip !");
-
-    // Check version
-    let version = lr2021.get_version().await.expect("Reading firmware version !");
-    info!("FW Version {}", version);
+    let board = BoardNucleoL476Rg::init(&spawner).await;
+    let mut lr2021 = board.lr2021;
+    let mut irq = board.irq;
 
     // Initialize transceiver for LoRa communication
     lr2021.set_rf(868_400_000).await.expect("Setting RF to 868.4MHz");
@@ -150,8 +103,10 @@ async fn main(spawner: Spawner) {
         mode: ZwaveMode::R1
     };
 
+    BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
     // Wait for a button press for actions
-    let mut button_press = BUTTON_PRESS.receiver().unwrap();
+    let mut button_press = BoardNucleoL476Rg::get_button_evt();
+
     loop {
         match select(button_press.changed(), irq.wait_for_rising_edge()).await {
             Either::First(press) => {
@@ -190,9 +145,9 @@ async fn main(spawner: Spawner) {
                 if intr.rx_done() && ! intr.addr_error() {
                     handle_rx_pkt(&mut lr2021, &mut state).await;
                     if intr.crc_error() {
-                        LED_RED_MODE.signal(LedMode::Flash);
+                        BoardNucleoL476Rg::led_red_set(LedMode::Flash);
                     } else {
-                        LED_GREEN_MODE.signal(LedMode::Flash);
+                        BoardNucleoL476Rg::led_green_set(LedMode::Flash);
                     }
                 }
                 lr2021.clear_rx_fifo().await.expect("ClearFifo");
@@ -230,9 +185,6 @@ async fn main(spawner: Spawner) {
     }
 }
 
-type Lr2021Stm32 = Lr2021<Output<'static>,lr2021_apps::board::SpiWrapper, BusyAsync<ExtiInput<'static>>>;
-// type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, embassy_stm32::mode::Async>, BusyAsync<ExtiInput<'static>>>;
-
 async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     let stats = lr2021.get_zwave_rx_stats_adv().await.expect("RX stats");
     info!("[RX] Clearing stats | RX={}, CRC Err={}, LenErr={}, SyncFail={}, Timeout={}",
@@ -262,8 +214,10 @@ async fn send_message(lr2021: &mut Lr2021Stm32, state: &BoardState, msg: &[u8]) 
 async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
     let t0 = embassy_time::Instant::now();
     let status = lr2021.get_zwave_packet_status().await.expect("RX status");
+    let t1 = embassy_time::Instant::now();
     let nb_byte = status.pkt_len() as usize; // Make sure to not read more than the local buffer size
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
+    let t2 = embassy_time::Instant::now();
 
     let lqi = status.lqi();
     let lqi_frac = (lqi&3) * 25;
@@ -290,9 +244,13 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
             // Send Ack when requested
             if rx_phy_hdr.ack_req {
                 state.phy_hdr.hdr_type = ZwaveHdrType::Ack;
+                let t3 = embassy_time::Instant::now();
                 send_message(lr2021, &state, &[]).await;
-                let dt = embassy_time::Instant::now() - t0;
-                info!("Ack sent after {}us", dt.as_micros());
+                let dt  = (embassy_time::Instant::now() - t0).as_micros();
+                let dt1 = (t1 - t0).as_micros();
+                let dt2 = (t2 - t1).as_micros();
+                let dt3 = (t3 - t2).as_micros();
+                info!("Ack sent after {}us | breakdown: {}, {}, {}", dt, dt1, dt2, dt3);
             } else {
                 state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
             }

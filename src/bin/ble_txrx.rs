@@ -12,24 +12,16 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_stm32::{mode::Async};
-use embassy_stm32::spi::{Config, Spi};
-use embassy_stm32::{
-    exti::ExtiInput,
-    gpio::{Level, Output, Pull, Speed},
-    time::Hertz,
-};
-use embassy_sync::{signal::Signal, watch::Watch};
 
 use lr2021_apps::{
     ble_adv::{parse_and_print_ble_adv, parse_ble_adv_hdr, print_ble_adv, AddrList, BleAdvType},
-    board::{blink, user_intf, BoardRole, ButtonPressKind, LedMode, SignalLedMode, WatchButtonPress},
+    board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32},
 };
 use lr2021::{
     ble::*,
     radio::{FallbackMode, PacketType, RampTime, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::ChipMode, BusyAsync, Lr2021
+    system::ChipMode,
 };
 
 const VERBOSE: bool = false;
@@ -50,12 +42,6 @@ const ADV_BEACON : [u8;28] = [
     // Manufacturer = ST Microelectronics
     0x05, 0xFF, 0x30, 0x00, 0xCD, 0x05
 ];
-
-/// Generate event when the button is press with short (0) or long (1) duration
-static BUTTON_PRESS: WatchButtonPress = Watch::new();
-/// Led modes
-static LED_TX_MODE: SignalLedMode = Signal::new();
-static LED_RX_MODE: SignalLedMode = Signal::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Format)]
 pub enum AdvChanRf {Chan37, Chan38, Chan39, ChanOob}
@@ -89,49 +75,18 @@ impl AdvChanRf {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
     info!("Starting ble_txrx");
 
-    // Start tasks to blink the TX/RX leds
-    let led_tx = Output::new(p.PC1, Level::High, Speed::Low);
-    spawner.spawn(blink(led_tx, &LED_TX_MODE)).unwrap();
-    LED_TX_MODE.signal(LedMode::Off);
-
-    let led_rx = Output::new(p.PC0, Level::High, Speed::Low);
-    spawner.spawn(blink(led_rx, &LED_RX_MODE)).unwrap();
-    LED_RX_MODE.signal(LedMode::BlinkSlow);
-
-    // Start task to check the button press
-    let button = ExtiInput::new(p.PC13, p.EXTI13, Pull::Up);
-    spawner.spawn(user_intf(button, &BUTTON_PRESS)).unwrap();
-
-    // Control pins
-    let busy = ExtiInput::new(p.PB3, p.EXTI3, Pull::Up);
-    let nreset = Output::new(p.PA0, Level::High, Speed::Low);
-
-    let mut irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
-
-    // SPI
-    let mut spi_config = Config::default();
-    spi_config.frequency = Hertz(4_000_000);
-    let spi = Spi::new(
-        p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config,
-    );
-    let nss = Output::new(p.PA8, Level::High, Speed::VeryHigh);
-
-    // Create driver and reset board
-    let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
-    lr2021.reset().await.expect("Resetting chip !");
-
-    // Check version
-    let version = lr2021.get_version().await.expect("Reading firmware version !");
-    info!("FW Version {}", version);
+    let board = BoardNucleoL476Rg::init(&spawner).await;
+    let mut lr2021 = board.lr2021;
+    let mut irq = board.irq;
+    BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
 
     // Select Out-of-band channel to avoid immediately picking BLE traffic and allow board-to-board communication
     let mut chan = AdvChanRf::ChanOob;
 
     // Wait for a button press for actions
-    let mut button_press = BUTTON_PRESS.receiver().unwrap();
+    let mut button_press = BoardNucleoL476Rg::get_button_evt();
 
     // Initialize transceiver for BLE communication with max boost
     lr2021.set_rf(chan.freq()).await.expect("SetRF");
@@ -199,12 +154,15 @@ async fn main(spawner: Spawner) {
                 // Clear all IRQs
                 let intr = lr2021.get_and_clear_irq().await.expect("GetIrqs");
                 if intr.tx_done() {
-                    LED_TX_MODE.signal(LedMode::Flash);
+                    BoardNucleoL476Rg::led_red_set(LedMode::Flash);
                 }
                 // Make sure the FIFO contains data
                 let lvl = lr2021.get_rx_fifo_lvl().await.expect("RxFifoLvl");
                 if lvl > 0 && intr.rx_done() {
-                    if let Some(pkt_status) = read_pkt(&mut lr2021, intr).await {
+                    if intr.crc_error() {
+                        BoardNucleoL476Rg::led_red_set(LedMode::Flash);
+                        lr2021.clear_rx_fifo().await.ok();
+                    } else if let Some(pkt_status) = read_pkt(&mut lr2021, intr).await {
                         let nb_byte = pkt_status.pkt_len().min(128) as usize;
                         let rssi_dbm = pkt_status.rssi_avg()>>1;
                         if role==BoardRole::TxAuto {
@@ -225,18 +183,17 @@ async fn main(spawner: Spawner) {
                         } else {
                             parse_and_print_ble_adv(&mut addr_seen, &lr2021.buffer()[..nb_byte], rssi_dbm, VERBOSE);
                         }
-                        // show_rx_pkt(&mut lr2021, &mut data, &mut addr_seen, intr, VERBOSE).await;
-                        if !intr.crc_error() {
-                            LED_RX_MODE.signal(LedMode::Flash);
-                        }
                     }
+                    BoardNucleoL476Rg::led_green_set(LedMode::Flash);
+                }
+                // Listen for response for 10ms (unit ~ 30.50us) after sending beacon
+                if intr.tx_done() && role.is_tx() {
+                    lr2021.set_rx(328, true).await.expect("SetRx");
                 }
             }
         }
     }
 }
-
-type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static, Async>, BusyAsync<ExtiInput<'static>>>;
 
 async fn set_ble_chan(lr2021: &mut Lr2021Stm32, chan: AdvChanRf) {
     lr2021.set_ble_params(false, ChannelType::Advertiser, chan.whit_init(), 0x555555, 0x8e89bed6).await.expect("Set params");
@@ -266,12 +223,10 @@ async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, addr_seen: &A
 async fn send_beacon(lr2021: &mut Lr2021Stm32) {
     let len = ADV_BEACON.len();
     // Create payload and send it to the TX FIFO
-    lr2021.buffer_mut().copy_from_slice(&ADV_BEACON);
+    lr2021.buffer_mut()[..len].copy_from_slice(&ADV_BEACON);
     lr2021.wr_tx_fifo(len).await.expect("FIFO write");
     info!("[TX] Sending beacon");
     lr2021.set_ble_tx(len as u8).await.expect("SetTx");
-    // Listen for response for 10ms (unit ~ 30.50us)
-    lr2021.set_rx(328, true).await.expect("SetRx");
 }
 
 async fn send_req(lr2021: &mut Lr2021Stm32, req_type: BleAdvType, addr: u64) {
@@ -294,12 +249,12 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, is_rx: bool) {
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     if is_rx {
         lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
-        LED_TX_MODE.signal(LedMode::Off);
-        LED_RX_MODE.signal(LedMode::BlinkSlow);
+        BoardNucleoL476Rg::led_red_set(LedMode::Off);
+        BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
         info!(" -> Switched to RX (chan: {})", chan);
     } else {
-        LED_TX_MODE.signal(LedMode::BlinkSlow);
-        LED_RX_MODE.signal(LedMode::Off);
+        BoardNucleoL476Rg::led_red_set(LedMode::BlinkSlow);
+        BoardNucleoL476Rg::led_green_set(LedMode::Off);
         info!(" -> Switching to FS: ready for TX on {}", chan);
     }
 }
@@ -313,7 +268,6 @@ async fn read_pkt(lr2021: &mut Lr2021Stm32, intr: Intr) -> Option<BlePacketStatu
         warn!("No data in fifo ({}) | {}", nb_byte, intr);
         return None;
     }
-
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
     Some(pkt_status)
 }
