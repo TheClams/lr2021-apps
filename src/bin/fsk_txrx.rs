@@ -1,10 +1,18 @@
 #![no_std]
 #![no_main]
 
-// LoRa TX/RX demo application
-// Blinking led green is for RX, red is for TX
-// Long press on user button switch the board role between TX and RX
-// Short press either send a packet of incrementing byte or display RX stats in RX
+//! # FSK TX/RX demo application
+//!
+//! Slow blinking led green is for RX, red is for TX
+//! In RX mode, the red led flash when a CRC error is detected, and the green led flash on CRC OK
+//! Long press on user button switch the board role between TX and RX
+//! Short press either send a packet of incrementing byte or display RX stats in RX
+//!
+//! The board also accept command by UART (running at 444_444bauds), one character per command:
+//!  - 's' to switch mode
+//!  - 't' to transmit a packet
+//!  - 'a' to toggle auto mode in transmit to have one packet every 250ms
+//!  - 'h' to alternate between two modulation index (0.5 and 1.0)
 
 use defmt::*;
 use embassy_stm32::{mode::Async, usart::Uart};
@@ -18,9 +26,9 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
     fsk::{AddrComp, BitOrder, Crc, FskPktFormat, PblLenDetect, PldLenUnit},
-    radio::{PacketType, RampTime, RxPath},
+    radio::{PacketType, RampTime, RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::ChipMode, PulseShape, RxBw
+    system::{ChipMode, DioNum}, PulseShape, RxBw
 };
 
 const PLD_SIZE : u8 = 10;
@@ -49,7 +57,7 @@ async fn main(spawner: Spawner) {
     // Initialize transceiver for FSK communication
     // 901MHz, 0dbM, SF5 BW1000, CR 4/5
     lr2021.set_rf(901_000_000).await.expect("Setting RF to 901MHz");
-    lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("Setting RX path to LF");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("Setting RX path to LF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
 
     match lr2021.get_status().await {
@@ -70,7 +78,7 @@ async fn main(spawner: Spawner) {
     }
 
     // Set DIO7 as IRQ for RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_RX_DONE|IRQ_MASK_TX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_RX_DONE|IRQ_MASK_TX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     // Wait for a button press for actions
     let mut button_press = BoardNucleoL476Rg::get_button_evt();
@@ -177,7 +185,7 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
         BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
         info!(" -> Switched to RX");
     } else {
-        BoardNucleoL476Rg::led_red_set(LedMode::Off);
+        BoardNucleoL476Rg::led_red_set(LedMode::BlinkSlow);
         BoardNucleoL476Rg::led_green_set(LedMode::Off);
         info!(" -> Ready for TX: press button to start periodic packet transmission");
     }

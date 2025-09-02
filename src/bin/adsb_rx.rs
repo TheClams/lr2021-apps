@@ -21,9 +21,9 @@ use heapless::String;
 use lr2021_apps::board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
     ook::*,
-    radio::RxPath,
+    radio::{RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE},
-    system::ChipMode
+    system::{ChipMode, DioNum}
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Format)]
@@ -61,7 +61,7 @@ async fn main(spawner: Spawner) {
 
     // Initialize transceiver for ADS-B reception with max boost
     lr2021.set_rf(chan.freq()).await.expect("SetRF");
-    lr2021.set_rx_path(RxPath::LfPath, 7).await.expect("SetRxPath");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Max).await.expect("SetRxPath");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
 
     match lr2021.get_status().await {
@@ -81,7 +81,7 @@ async fn main(spawner: Spawner) {
     auto_thr(&mut lr2021).await;
 
     // Set DIO7 as IRQ for TX/RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     loop {
         match select(button_press.changed(), irq.wait_for_high()).await {

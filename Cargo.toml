@@ -5,7 +5,7 @@ version = "0.1.0"
 license = "MIT"
 
 [dependencies]
-lr2021 = {version = "0.5.0", features=["defmt"]}
+lr2021 = {version = "0.6.0", features=["defmt"]}
 # lr2021 = {version = "*", path = "../lr2021", features=["defmt"]}
 
 embassy-stm32 = { version = "0.2.0", features = [ "defmt", "unstable-pac", "stm32l476rg", "memory-x", "time-driver-any", "exti", "chrono", "dual-bank"]  }

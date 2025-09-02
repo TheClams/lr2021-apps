@@ -1,10 +1,12 @@
 #![no_std]
 #![no_main]
 
-// LoRa TX/RX demo application
-// Blinking led green is for RX, red is for TX
-// Long press on user button switch the board role between TX and RX
-// Short press either send a packet of incrementing byte or display RX stats in RX
+//! # ZWave TX/RX demo application
+//!
+//! Double press change the board mode: spy or join
+//! Long press while active generate a NOP command
+//! While in JOIN mode, the board will try to answer to any Transfer Presentation command, and other related command
+//! In SPY mode, the message received are decoded and print on the debug link
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -15,9 +17,9 @@ use embassy_futures::select::{select, Either};
 use lr2021_apps::board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32};
 // use lr2021_apps::board::*;
 use lr2021_apps::zwave_utils::{ProtCmd, ZwaveHdrType, ZwavePhyHdr, ManufacturerCmd, VersionCmd, ZwaveCmd};
-use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxPath};
+use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxBoost, RxPath};
 use lr2021::status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE};
-use lr2021::system::ChipMode;
+use lr2021::system::{ChipMode, DioNum};
 use lr2021::zwave::*;
 
 const NPU_NODE_INFO : [u8;11] = [
@@ -67,7 +69,7 @@ async fn main(spawner: Spawner) {
 
     // Initialize transceiver for LoRa communication
     lr2021.set_rf(868_400_000).await.expect("Setting RF to 868.4MHz");
-    lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("Setting RX path to LF");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("Setting RX path to LF");
     // lr2021.set_rf(2_400_000_000).await.expect("Setting RF to 2.4GHz");
     // lr2021.set_rx_path(RxPath::HfPath, 0).await.expect("Setting RX path to HF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
@@ -94,7 +96,7 @@ async fn main(spawner: Spawner) {
     }
 
     // Set DIO7 as IRQ for RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_RX_DONE|IRQ_MASK_TX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_RX_DONE|IRQ_MASK_TX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     let mut state = BoardState{
         is_active: false,
@@ -212,12 +214,9 @@ async fn send_message(lr2021: &mut Lr2021Stm32, state: &BoardState, msg: &[u8]) 
 
 
 async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
-    let t0 = embassy_time::Instant::now();
     let status = lr2021.get_zwave_packet_status().await.expect("RX status");
-    let t1 = embassy_time::Instant::now();
     let nb_byte = status.pkt_len() as usize; // Make sure to not read more than the local buffer size
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
-    let t2 = embassy_time::Instant::now();
 
     let lqi = status.lqi();
     let lqi_frac = (lqi&3) * 25;
@@ -244,13 +243,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
             // Send Ack when requested
             if rx_phy_hdr.ack_req {
                 state.phy_hdr.hdr_type = ZwaveHdrType::Ack;
-                let t3 = embassy_time::Instant::now();
                 send_message(lr2021, &state, &[]).await;
-                let dt  = (embassy_time::Instant::now() - t0).as_micros();
-                let dt1 = (t1 - t0).as_micros();
-                let dt2 = (t2 - t1).as_micros();
-                let dt3 = (t3 - t2).as_micros();
-                info!("Ack sent after {}us | breakdown: {}, {}, {}", dt, dt1, dt2, dt3);
             } else {
                 state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
             }

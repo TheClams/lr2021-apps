@@ -1,11 +1,12 @@
 #![no_std]
 #![no_main]
 
-// BLE TX/RX Demo application
-// Long press on user button switch the board role between TX and RX
-// Double press change the advertising channel (OOB/37/38/39)
-// Short press while in TX mode, send an packet advertising packet
-// Short press while in RX mode, switch to scan mode on all recently seens address
+//! # BLE TX/RX Demo application
+//!
+//! Long press on user button switch the board role between TX and RX
+//! Double press change the advertising channel (OOB/37/38/39)
+//! Short press while in TX mode, send an packet advertising packet
+//! Short press while in RX mode, switch to scan mode on all recently seens address
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -19,9 +20,9 @@ use lr2021_apps::{
 };
 use lr2021::{
     ble::*,
-    radio::{FallbackMode, PacketType, RampTime, RxPath},
+    radio::{FallbackMode, PacketType, RampTime, RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::ChipMode,
+    system::{ChipMode, DioNum},
 };
 
 const VERBOSE: bool = false;
@@ -90,7 +91,7 @@ async fn main(spawner: Spawner) {
 
     // Initialize transceiver for BLE communication with max boost
     lr2021.set_rf(chan.freq()).await.expect("SetRF");
-    lr2021.set_rx_path(RxPath::HfPath, 7).await.expect("Setting RX path to HF");
+    lr2021.set_rx_path(RxPath::HfPath, RxBoost::Max).await.expect("Setting RX path to HF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
 
     match lr2021.get_status().await {
@@ -107,12 +108,12 @@ async fn main(spawner: Spawner) {
     // Start RX continuous
     lr2021.set_packet_type(PacketType::Ble).await.expect("Setting packet type to BLE");
     lr2021.set_ble_modulation(BleMode::Le1mb).await.expect("Setting BLE mode (1Mb/s)");
-    set_ble_chan(&mut lr2021, chan).await;
+    lr2021.set_ble_params(false, ChannelType::Advertiser, chan.whit_init(), 0x555555, 0x8e89bed6).await.expect("Set params");
 
     lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRX");
 
     // Set DIO7 as IRQ for TX/RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_TX_DONE|IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_TX_DONE|IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     // Keep a list of address seen to avoid spamming
     let mut addr_seen = AddrList::new(0xa463ef8c89e6);
@@ -193,10 +194,6 @@ async fn main(spawner: Spawner) {
             }
         }
     }
-}
-
-async fn set_ble_chan(lr2021: &mut Lr2021Stm32, chan: AdvChanRf) {
-    lr2021.set_ble_params(false, ChannelType::Advertiser, chan.whit_init(), 0x555555, 0x8e89bed6).await.expect("Set params");
 }
 
 async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, addr_seen: &AddrList, is_rx: bool) {

@@ -1,10 +1,11 @@
 #![no_std]
 #![no_main]
 
-// LoRa TX/RX demo application
-// Blinking led green is for RX, red is for TX
-// Long press on user button switch the board role between TX and RX
-// Short press either send a packet of incrementing byte or display RX stats in RX
+//! FLRC TX/RX demo application
+//! Blinking led green is for RX, red is for TX
+//! Long press on user button switch the board role between TX and RX
+//! Short press either send a packet of incrementing byte or display RX stats in RX
+//! Double press in TX changes the syncword used
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -15,9 +16,9 @@ use embassy_futures::select::{select, Either};
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
     flrc::*,
-    radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxPath},
+    radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::ChipMode, PulseShape
+    system::{ChipMode, DioNum}, PulseShape
 };
 
 const PLD_SIZE : u16 = 10;
@@ -65,7 +66,7 @@ async fn main(spawner: Spawner) {
 
     // Initialize transceiver for LoRa communication
     lr2021.set_rf(900_000_000).await.expect("Setting RF to 900MHz");
-    lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("Setting RX path to LF");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("Setting RX path to LF");
     // lr2021.set_rf(2_400_000_000).await.expect("Setting RF to 2.4GHz");
     // lr2021.set_rx_path(RxPath::HfPath, 0).await.expect("Setting RX path to HF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
@@ -94,7 +95,7 @@ async fn main(spawner: Spawner) {
     BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
 
     // Set DIO7 as IRQ for RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_TX_DONE|IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_TX_DONE|IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     // Create data buffer to test the wr_fifo_from and rf_fifo_to APIs
     let mut data = [0;16];

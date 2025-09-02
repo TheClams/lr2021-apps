@@ -1,10 +1,11 @@
 #![no_std]
 #![no_main]
 
-// LoRa TX/RX demo application
-// Blinking led green is for RX, red is for TX
-// Long press on user button switch the board role between TX and RX
-// Short press either send a packet of incrementing byte or display RX stats in RX
+//! # LoRa TX/RX demo application
+//!
+//! Blinking led green is for RX, red is for TX
+//! Long press on user button switch the board role between TX and RX
+//! Short press either send a packet of incrementing byte or display RX stats in RX
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -15,9 +16,9 @@ use embassy_futures::select::{select, Either};
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
     lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf},
-    radio::{PacketType, RampTime, RxPath},
+    radio::{PacketType, RampTime, RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE},
-    system::ChipMode
+    system::{ChipMode, DioNum}
 };
 
 const PLD_SIZE : u8 = 10;
@@ -37,7 +38,7 @@ async fn main(spawner: Spawner) {
     // Initialize transceiver for LoRa communication
     // 901MHz, 0dbM, SF5 BW1000, CR 4/5
     lr2021.set_rf(901_000_000).await.expect("Setting RF to 901MHz");
-    lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("Setting RX path to LF");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("Setting RX path to LF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
 
     match lr2021.get_status().await {
@@ -58,7 +59,7 @@ async fn main(spawner: Spawner) {
     }
 
     // Set DIO9 as IRQ for RX Done
-    lr2021.set_dio_irq(7, Intr::new(IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
+    lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_RX_DONE)).await.expect("Setting DIO7 as IRQ");
 
     // Wait for a button press for actions
     let mut button_press = BoardNucleoL476Rg::get_button_evt();

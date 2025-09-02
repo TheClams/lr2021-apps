@@ -16,7 +16,7 @@ use heapless::String;
 
 use lr2021_apps::board::{BoardNucleoL476Rg, LedMode};
 use lr2021::{
-    radio::{PacketType, RxPath}, PulseShape, RxBw
+    radio::{PacketType, RxBoost, RxPath}, PulseShape, RxBw
 };
 
 const RF_MIN : u32 =  400_000_000;
@@ -42,7 +42,7 @@ async fn main(spawner: Spawner) {
     // Initialize transceiver
     let mut rf = 400_000_000;
     lr2021.set_rf(rf).await.expect("SetRF");
-    lr2021.set_rx_path(RxPath::LfPath, 0).await.expect("SetRxPath");
+    lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("SetRxPath");
     // Frequencies are provided with a resolution 4MHz: calibration for 500, 700 and 900 MHz to cover the range we want observe
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
     // lr2021.calib_fe(&[125, 175, 225]).await.expect("Front-End calibration");
