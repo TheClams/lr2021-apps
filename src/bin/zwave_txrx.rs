@@ -9,15 +9,17 @@
 //! In SPY mode, the message received are decoded and print on the debug link
 
 use defmt::*;
+use embassy_time::{Duration, Timer};
 use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 
+use embassy_stm32::gpio::Output;
+
 use lr2021_apps::board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32};
-// use lr2021_apps::board::*;
 use lr2021_apps::zwave_utils::{ProtCmd, ZwaveHdrType, ZwavePhyHdr, ManufacturerCmd, VersionCmd, ZwaveCmd};
-use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxBoost, RxPath};
+use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxBoost, RxPath, TimestampIndex, TimestampSource};
 use lr2021::status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE};
 use lr2021::system::{ChipMode, DioNum};
 use lr2021::zwave::*;
@@ -58,6 +60,7 @@ struct BoardState {
     phy_hdr: ZwavePhyHdr,
     on_tx_done: Action,
     mode: ZwaveMode,
+    trigger_tx: Output<'static>,
 }
 
 #[embassy_executor::main]
@@ -97,12 +100,15 @@ async fn main(spawner: Spawner) {
 
     // Set DIO7 as IRQ for RX Done
     lr2021.set_dio_irq(DioNum::Dio7, Intr::new(IRQ_MASK_RX_DONE|IRQ_MASK_TX_DONE)).await.expect("Setting DIO7 as IRQ");
+    // Configuring timestamping of RX Packet
+    lr2021.set_timestamp_source(TimestampIndex::Ts0, TimestampSource::RxDone ).await.expect("SetTs");
 
-    let mut state = BoardState{
+    let mut state = BoardState {
         is_active: false,
         phy_hdr: PHY_HDR,
         on_tx_done: Action::None,
-        mode: ZwaveMode::R1
+        mode: ZwaveMode::R1,
+        trigger_tx: board.trigger_tx
     };
 
     BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
@@ -131,7 +137,7 @@ async fn main(spawner: Spawner) {
                         if state.is_active && state.on_tx_done == Action::None {
                             info!("Sending NodeInfo");
                             state.phy_hdr.dst = 0xFF;
-                            send_message(&mut lr2021, &state, &NPU_NODE_INFO).await;
+                            send_message(&mut lr2021, &mut state, &NPU_NODE_INFO).await;
                         }
                     }
                 }
@@ -159,19 +165,19 @@ async fn main(spawner: Spawner) {
                     state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
                     match state.on_tx_done {
                         Action::CmdDone(sn) => {
-                            send_message(&mut lr2021, &state, &[1,7, sn]).await;
+                            send_message(&mut lr2021, &mut state, &[1,7, sn]).await;
                         }
                         // Dummy manufacturer report
                         Action::Manufacturer => {
-                            send_message(&mut lr2021, &state, &[0x72,0x05, 0x00, 0x39, 0x99, 0xBA, 0xCD, 0x05]).await;
+                            send_message(&mut lr2021, &mut state, &[0x72,0x05, 0x00, 0x39, 0x99, 0xBA, 0xCD, 0x05]).await;
                         }
                         // Dummy version report: library 1, Version 2.36, App 1.0
                         Action::Version => {
-                            send_message(&mut lr2021, &state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
+                            send_message(&mut lr2021, &mut state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
                         }
                         Action::RangeRes    => {
                             state.phy_hdr.ack_req = true;
-                            send_message(&mut lr2021, &state, &[1, 6, 1, 0, 0]).await;
+                            send_message(&mut lr2021, &mut state, &[1, 6, 1, 0, 0]).await;
                             state.phy_hdr.ack_req = false;
                             // After Range command node is part of the networkd -> enable address filtering
                             let scan_cfg = ZwaveScanCfg::from_region(ZwaveAddrComp::Homeid, FcsMode::Auto, ZwaveRfRegion::Eu);
@@ -199,7 +205,7 @@ async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
     lr2021.clear_rx_stats().await.unwrap();
 }
 
-async fn send_message(lr2021: &mut Lr2021Stm32, state: &BoardState, msg: &[u8]) {
+async fn send_message(lr2021: &mut Lr2021Stm32, state: &mut BoardState, msg: &[u8]) {
     let len = msg.len() + 9;
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     let params = ZwavePacketParams::from_mode(state.mode, ZwavePpduKind::SingleCast, len as u8);
@@ -209,11 +215,25 @@ async fn send_message(lr2021: &mut Lr2021Stm32, state: &BoardState, msg: &[u8]) 
         lr2021.buffer_mut()[9..len].copy_from_slice(msg);
     }
     lr2021.wr_tx_fifo(len).await.expect("FIFO write");
-    lr2021.set_tx(0).await.expect("SetTx");
+    // For Ack packet we need to respect some precise timing: check timestamp and use a TX trigger
+    if state.phy_hdr.hdr_type == ZwaveHdrType::Ack {
+        let rx_ts_tick = lr2021.get_timestamp(TimestampIndex::Ts0).await.expect("GetTs");
+        let rx_ts_ns = (rx_ts_tick as u64 * 125) >> 2; // 32MHz -> 31.25ns
+        // Ensure the packet will starts after ~ 1ms
+        let sleep = Duration::from_micros(1000) - Duration::from_nanos(rx_ts_ns);
+        Timer::after(sleep).await;
+        state.trigger_tx.set_high();
+        lr2021.wait_ready(Duration::from_micros(100)).await.expect("WaitTxTrigger");
+        Timer::after_micros(1).await;
+        state.trigger_tx.set_low();
+    } else {
+        lr2021.set_tx(0).await.expect("SetTx");
+    }
 }
 
 
 async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
+    let t0 = embassy_time::Instant::now();
     let status = lr2021.get_zwave_packet_status().await.expect("RX status");
     let nb_byte = status.pkt_len() as usize; // Make sure to not read more than the local buffer size
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
@@ -243,7 +263,9 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
             // Send Ack when requested
             if rx_phy_hdr.ack_req {
                 state.phy_hdr.hdr_type = ZwaveHdrType::Ack;
-                send_message(lr2021, &state, &[]).await;
+                send_message(lr2021, state, &[]).await;
+                let dt  = (embassy_time::Instant::now() - t0).as_micros();
+                info!("Ack sent after {}us", dt);
             } else {
                 state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
             }
@@ -251,7 +273,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
             match cmd {
                 ZwaveCmd::Prot(ProtCmd::TransferPres) => {
                     state.phy_hdr.home_id = rx_phy_hdr.home_id;
-                    send_message(lr2021, &state, &NPU_NODE_INFO).await;
+                    send_message(lr2021, state, &NPU_NODE_INFO).await;
                 }
                 // On FindNode simply answer job done
                 // either immediately or postponed after ack
@@ -260,7 +282,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
                     if rx_phy_hdr.ack_req {
                         state.on_tx_done = Action::CmdDone(sn);
                     } else {
-                        send_message(lr2021, &state, &[1,7, sn]).await;
+                        send_message(lr2021, state, &[1,7, sn]).await;
                     }
                 }
                 // On GetNode answer no node were found
@@ -268,7 +290,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
                     if rx_phy_hdr.ack_req {
                         state.on_tx_done = Action::RangeRes;
                     } else {
-                        send_message(lr2021, &state, &[1,6,0]).await;
+                        send_message(lr2021, state, &[1,6,0]).await;
                     }
                 }
                 // On GetNode answer no node were found
@@ -276,7 +298,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
                     if rx_phy_hdr.ack_req {
                         state.on_tx_done = Action::Manufacturer;
                     } else {
-                         send_message(lr2021, &state, &[0x72,0x05, 0x00, 0x39, 0x99, 0xBA, 0xCD, 0x05]).await;
+                         send_message(lr2021, state, &[0x72,0x05, 0x00, 0x39, 0x99, 0xBA, 0xCD, 0x05]).await;
                     }
                 }
                 // On GetNode answer no node were found
@@ -284,7 +306,7 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
                     if rx_phy_hdr.ack_req {
                         state.on_tx_done = Action::Version;
                     } else {
-                          send_message(lr2021, &state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
+                          send_message(lr2021, state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
                     }
                 }
                 _ => {}

@@ -47,7 +47,7 @@ def to_float(s: str) -> float:
 
 # Get Com port
 ser = serial.Serial()
-ser.baudrate = 444444
+ser.baudrate = 576000
 for port in com_ports:
     ser.port = port
     try :

@@ -10,17 +10,19 @@ use embassy_stm32::{
 };
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal, watch::{Receiver, Watch}};
 use embassy_time::{with_timeout, Duration, Timer};
-use lr2021::{BusyAsync, Lr2021};
+use lr2021::{system::{DioFunc, DioNum, PullDrive}, BusyAsync, Lr2021};
 
 bind_interrupts!(struct UartIrqs {
     USART2 => embassy_stm32::usart::InterruptHandler<embassy_stm32::peripherals::USART2>;
 });
 
 pub type Lr2021Stm32 = Lr2021<Output<'static>,SpiWrapper, BusyAsync<ExtiInput<'static>>>;
+// pub type Lr2021Stm32 = Lr2021<Output<'static>,Spi<'static,Async>, BusyAsync<ExtiInput<'static>>>;
 
 pub struct BoardNucleoL476Rg {
     pub lr2021: Lr2021Stm32,
     pub irq: ExtiInput<'static>,
+    pub trigger_tx: Output<'static>,
     pub uart: Uart<'static, Async>
 }
 
@@ -53,7 +55,25 @@ impl BoardNucleoL476Rg {
     // LEDRX | CN8 A4    | PC1
 
     pub async fn init(spawner: &Spawner) -> BoardNucleoL476Rg {
-        let p = embassy_stm32::init(Default::default());
+        let mut config = embassy_stm32::Config::default();
+
+        // Configure the system clock to run at 80MHz
+        // STM32L476RG has a 16MHz HSI (High Speed Internal) oscillator
+        // PLL formula: (HSI * PLLN) / (PLLM * PLLR) = (16MHz * 10) / (1 * 2) = 80MHz
+        config.rcc.hsi = true;
+        config.rcc.pll = Some(embassy_stm32::rcc::Pll {
+            source: embassy_stm32::rcc::PllSource::HSI,     // Use HSI as PLL source
+            prediv: embassy_stm32::rcc::PllPreDiv::DIV1,    // PLLM = 1
+            mul: embassy_stm32::rcc::PllMul::MUL10,         // PLLN = 10
+            divp: None,                                     // PLLP not used
+            divq: None,                                     // PLLQ not used
+            divr: Some(embassy_stm32::rcc::PllRDiv::DIV2),  // PLLR = 2
+        });
+        config.rcc.sys = embassy_stm32::rcc::Sysclk::PLL1_R;
+        // config.rcc.ahb_pre = embassy_stm32::rcc::AHBPrescaler::DIV1;
+        // config.rcc.apb1_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
+        // config.rcc.apb2_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
+        let p = embassy_stm32::init(config);
 
         // Leds & buttons
         let led_red = Output::new(p.PC1, Level::High, Speed::Low);
@@ -72,15 +92,16 @@ impl BoardNucleoL476Rg {
         let nreset = Output::new(p.PA0, Level::High, Speed::Low);
 
         let irq = ExtiInput::new(p.PB0, p.EXTI0, Pull::None); // DIO7
+        let trigger_tx = Output::new(p.PA1, Level::Low, Speed::Medium); // DIO8
 
         // UART on Virtual Com: 115200bauds, 1 stop bit, no parity, no flow control
         let mut uart_config = UartConfig::default();
-        uart_config.baudrate = 444_444;
+        uart_config.baudrate = 576000;
         let uart = Uart::new(p.USART2, p.PA3, p.PA2, UartIrqs, p.DMA1_CH7, p.DMA1_CH6, uart_config).unwrap();
 
         // SPI
         let mut spi_config = SpiConfig::default();
-        spi_config.frequency = Hertz(4_000_000);
+        spi_config.frequency = Hertz(12_000_000);
         let spi = SpiWrapper(Spi::new_blocking(p.SPI1, p.PA5, p.PA7, p.PA6, spi_config));
         // let spi = Spi::new(
         //     p.SPI1, p.PA5, p.PA7, p.PA6, p.DMA1_CH3, p.DMA1_CH2, spi_config,
@@ -91,10 +112,13 @@ impl BoardNucleoL476Rg {
         let mut lr2021 = Lr2021::new(nreset, busy, spi, nss);
         lr2021.reset().await.expect("Resetting chip !");
 
+        // Configure DIO8 as a TX Trigger
+        lr2021.set_dio_function(DioNum::Dio8, DioFunc::TxTrigger, PullDrive::PullNone).await.expect("SetDioTxTrigger");
+
         // Check version
         let version = lr2021.get_version().await.expect("Reading firmware version !");
         info!("FW Version {}", version);
-        BoardNucleoL476Rg{lr2021, irq, uart}
+        BoardNucleoL476Rg{lr2021, irq, uart, trigger_tx}
     }
 
     pub fn get_button_evt() -> ButtonRcvr {

@@ -14,7 +14,7 @@ stop_event = threading.Event()
 def read_rssi(com_ports: list[str], rssi_dict: dict[float, float], cmd: dict[str,str]):
 	ser = serial.Serial()
 	# ser.baudrate = 115200
-	ser.baudrate = 444444
+	ser.baudrate = 576000
 	while not ser.is_open:
 		for port in com_ports :
 			try :
