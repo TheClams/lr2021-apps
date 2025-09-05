@@ -3,9 +3,10 @@
 
 //! # ZWave TX/RX demo application
 //!
-//! Double press change the board mode: spy or join
+//! Double press change the board mode: spy or active
 //! Long press while active generate a NOP command
-//! While in JOIN mode, the board will try to answer to any Transfer Presentation command, and other related command
+//! While in ACTIVE mode, the board will try to answer to any Transfer Presentation command, and other related command
+//! The Bare minimum support is done to appears as a binary switch and turn led on/off when requested
 //! In SPY mode, the message received are decoded and print on the debug link
 
 use defmt::*;
@@ -17,14 +18,14 @@ use embassy_futures::select::{select, Either};
 
 use embassy_stm32::gpio::Output;
 
-use lr2021_apps::board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32};
+use lr2021_apps::{board::{BoardNucleoL476Rg, ButtonPressKind, LedMode, Lr2021Stm32}, zwave_utils::{BinaryCmd, NamingCmd}};
 use lr2021_apps::zwave_utils::{ProtCmd, ZwaveHdrType, ZwavePhyHdr, ManufacturerCmd, VersionCmd, ZwaveCmd};
 use lr2021::radio::{FallbackMode, PaLfMode, PacketType, RampTime, RxBoost, RxPath, TimestampIndex, TimestampSource};
 use lr2021::status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE};
 use lr2021::system::{ChipMode, DioNum};
 use lr2021::zwave::*;
 
-const NPU_NODE_INFO : [u8;11] = [
+const NPU_NODE_INFO : [u8;12] = [
     0x01, 0x01, // OpCode NodeInfo command
     0b10011011, // Version = 3, Support all speed, no routing, listening
     0b00000000, // Unsecure end-node with no special functionality
@@ -32,14 +33,15 @@ const NPU_NODE_INFO : [u8;11] = [
     0x00, // Static Device Type
     0x10, // Generic Device Class: Switch Binary (led on/off)
     0x00, // No Specific Device type
-    0x01, // Support Set command
-    0x02, // Support Get Command
-    0x03, // Support Report command
+    0x25, // Switch Binary Command class
+    0x72, // Manufacturer
+    0x77, // Node Naming
+    0x86, // Version
 ];
 
 const PHY_HDR: ZwavePhyHdr = ZwavePhyHdr {
     home_id: 0x0184E19D,
-    src: 0, // uninit
+    src: 0, //
     dst: 0xFF, // broadcast
     seq_num: 1,
     ack_req: false,
@@ -50,15 +52,22 @@ const PHY_HDR: ZwavePhyHdr = ZwavePhyHdr {
 enum Action {
     None,
     CmdDone(u8),
-    RangeRes,
+    NodeInfo,
+    RangeReport,
+    BinaryReport,
+    NameReport,
+    LocReport,
+    VersionCls(u8),
     Manufacturer,
     Version,
 }
 
 struct BoardState {
     is_active: bool,
+    led_on: bool,
     phy_hdr: ZwavePhyHdr,
-    on_tx_done: Action,
+    on_tx_done: bool,
+    next_action: Action,
     mode: ZwaveMode,
     trigger_tx: Output<'static>,
 }
@@ -105,8 +114,10 @@ async fn main(spawner: Spawner) {
 
     let mut state = BoardState {
         is_active: false,
+        led_on: false,
         phy_hdr: PHY_HDR,
-        on_tx_done: Action::None,
+        on_tx_done: false,
+        next_action: Action::None,
         mode: ZwaveMode::R1,
         trigger_tx: board.trigger_tx
     };
@@ -125,7 +136,7 @@ async fn main(spawner: Spawner) {
                     ButtonPressKind::Double => {
                         state.is_active = !state.is_active;
                         if state.is_active {
-                            info!("Board in JOIN mode");
+                            info!("Board in ACTIVE mode");
                         } else {
                             info!("Board in SPY mode");
                         }
@@ -134,7 +145,7 @@ async fn main(spawner: Spawner) {
                     //  - When active send a NOP to the controller
                     //  - When spy, maybe enable filtering and switch among all networked seen ?
                     ButtonPressKind::Long => {
-                        if state.is_active && state.on_tx_done == Action::None {
+                        if state.is_active && state.on_tx_done == false {
                             info!("Sending NodeInfo");
                             state.phy_hdr.dst = 0xFF;
                             send_message(&mut lr2021, &mut state, &NPU_NODE_INFO).await;
@@ -145,7 +156,7 @@ async fn main(spawner: Spawner) {
             // RX Interrupt
             Either::Second(_) => {
                 let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
-                // info!("Interrupt status: {}", intr);
+                // info!("Interrupt status: {} | Action={} {}", intr, state.next_action, state.on_tx_done);
                 if intr.error() {
                     let rsp = lr2021.get_errors().await.expect("GetErrors");
                     warn!("Error = {:08x} => {}", rsp.value(), rsp);
@@ -160,12 +171,28 @@ async fn main(spawner: Spawner) {
                 }
                 lr2021.clear_rx_fifo().await.expect("ClearFifo");
                 // On TxDone either go in scan or send another command (happens after an ack typically)
-                if intr.tx_done() {
-                    // info!("TX Done: {}", state.on_tx_done);
+                // If an action is pending not supposed to be trigger by TX done, execute it immediately
+                if state.next_action != Action::None && ((intr.tx_done() && state.on_tx_done) || !state.on_tx_done) {
                     state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
-                    match state.on_tx_done {
+                    match state.next_action {
+                        Action::NodeInfo => {
+                            send_message(&mut lr2021, &mut state, &NPU_NODE_INFO).await;
+                        }
                         Action::CmdDone(sn) => {
                             send_message(&mut lr2021, &mut state, &[1,7, sn]).await;
+                        }
+                        // Send a Binary report with the led status
+                        Action::BinaryReport => {
+                            let value = if state.led_on {0xFF} else {0x00};
+                            send_message(&mut lr2021, &mut state, &[0x25,3, value]).await;
+                        }
+                        // Send the node name in ASCII
+                        Action::NameReport => {
+                            send_message(&mut lr2021, &mut state, &[0x77, 3, 0, b'R', b'i', b'g', b'i']).await;
+                        }
+                        // Send a Binary report with the led status
+                        Action::LocReport => {
+                            send_message(&mut lr2021, &mut state, &[0x77, 6, 0, b'H', b'o', b'm', b'e']).await;
                         }
                         // Dummy manufacturer report
                         Action::Manufacturer => {
@@ -175,7 +202,12 @@ async fn main(spawner: Spawner) {
                         Action::Version => {
                             send_message(&mut lr2021, &mut state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
                         }
-                        Action::RangeRes    => {
+                        // Dummy command class version: report 1 for all command class
+                        Action::VersionCls(cls) => {
+                            send_message(&mut lr2021, &mut state, &[0x86,0x14, cls, 1]).await;
+                        }
+                        // Dummy report: nothing found (we did not even tried :P)
+                        Action::RangeReport    => {
                             state.phy_hdr.ack_req = true;
                             send_message(&mut lr2021, &mut state, &[1, 6, 1, 0, 0]).await;
                             state.phy_hdr.ack_req = false;
@@ -186,7 +218,10 @@ async fn main(spawner: Spawner) {
                         }
                         _ => lr2021.start_zwave_scan().await.expect("Scan"),
                     }
-                    state.on_tx_done = Action::None;
+                    state.next_action = Action::None;
+                } else if intr.tx_done() {
+                    // info!("Scan restarted");
+                    lr2021.start_zwave_scan().await.expect("Scan")
                 }
             }
         }
@@ -233,7 +268,6 @@ async fn send_message(lr2021: &mut Lr2021Stm32, state: &mut BoardState, msg: &[u
 
 
 async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
-    let t0 = embassy_time::Instant::now();
     let status = lr2021.get_zwave_packet_status().await.expect("RX status");
     let nb_byte = status.pkt_len() as usize; // Make sure to not read more than the local buffer size
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
@@ -242,92 +276,102 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
     let lqi_frac = (lqi&3) * 25;
 
     if let Some(rx_phy_hdr) = ZwavePhyHdr::parse(lr2021.buffer()) {
-        let npu = &lr2021.buffer()[9..nb_byte.max(9)];
-        let cmd = ZwaveCmd::parse(npu);
-        let handled = state.is_active && (matches!(cmd, ZwaveCmd::Prot(ProtCmd::TransferPres)) || rx_phy_hdr.ack_req);
+        let npdu = &lr2021.buffer()[9..nb_byte.max(9)];
+        let cmd = ZwaveCmd::parse(npdu);
         // Extremly basic handling of some ZWave command to join a network
         if state.is_active {
-            // Save command arguments (5 bytes for the moment)
-            let args : [u8;5] = core::array::from_fn(|i| npu.get(2+i).copied().unwrap_or(0));
             // Send packet to the source with an unitialized source address
             let ctrl_id = rx_phy_hdr.src;
             // Default destination to TX node
             state.phy_hdr.dst = ctrl_id;
             state.phy_hdr.seq_num = rx_phy_hdr.seq_num;
-            state.on_tx_done = Action::None;
+            // Clear state action
+            state.on_tx_done = false;
+            state.next_action = Action::None;
+            // Use same rate as sender
             state.mode = status.last_detect();
+            // On Set ID update local info
             if cmd == ZwaveCmd::Prot(ProtCmd::SetId) {
-                state.phy_hdr.src = *npu.get(2).unwrap_or(&0);
-                info!(" - Setting ID to {} -> {}", args[0], state.phy_hdr);
+                state.phy_hdr.src = *npdu.get(2).unwrap_or(&0);
+                state.phy_hdr.home_id = rx_phy_hdr.home_id; // In theory should take home ID referenced in NPDU
+                info!(" - Joining HomeID {} with ID {}", state.phy_hdr.home_id, state.phy_hdr.src);
             }
             // Send Ack when requested
             if rx_phy_hdr.ack_req {
                 state.phy_hdr.hdr_type = ZwaveHdrType::Ack;
                 send_message(lr2021, state, &[]).await;
-                let dt  = (embassy_time::Instant::now() - t0).as_micros();
-                info!("Ack sent after {}us", dt);
             } else {
                 state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
             }
             // Handle the command
             match cmd {
-                ZwaveCmd::Prot(ProtCmd::TransferPres) => {
+                ZwaveCmd::Prot(ProtCmd::TransferPres) |
+                ZwaveCmd::Prot(ProtCmd::ReqInfo) => {
                     state.phy_hdr.home_id = rx_phy_hdr.home_id;
-                    send_message(lr2021, state, &NPU_NODE_INFO).await;
+                    state.next_action = Action::NodeInfo;
                 }
                 // On FindNode simply answer job done
                 // either immediately or postponed after ack
                 ZwaveCmd::Prot(ProtCmd::FindNodesInRange) => {
                     let sn = rx_phy_hdr.seq_num;
-                    if rx_phy_hdr.ack_req {
-                        state.on_tx_done = Action::CmdDone(sn);
-                    } else {
-                        send_message(lr2021, state, &[1,7, sn]).await;
-                    }
+                    state.next_action = Action::CmdDone(sn);
                 }
                 // On GetNode answer no node were found
                 ZwaveCmd::Prot(ProtCmd::GetNodesInRange) => {
-                    if rx_phy_hdr.ack_req {
-                        state.on_tx_done = Action::RangeRes;
-                    } else {
-                        send_message(lr2021, state, &[1,6,0]).await;
-                    }
+                    state.next_action = Action::RangeReport;
                 }
                 // On GetNode answer no node were found
                 ZwaveCmd::Manufacturer(ManufacturerCmd::Get) => {
-                    if rx_phy_hdr.ack_req {
-                        state.on_tx_done = Action::Manufacturer;
-                    } else {
-                         send_message(lr2021, state, &[0x72,0x05, 0x00, 0x39, 0x99, 0xBA, 0xCD, 0x05]).await;
-                    }
+                    state.next_action = Action::Manufacturer;
                 }
                 // On GetNode answer no node were found
                 ZwaveCmd::Version(VersionCmd::Get) => {
-                    if rx_phy_hdr.ack_req {
-                        state.on_tx_done = Action::Version;
-                    } else {
-                          send_message(lr2021, state, &[0x86,0x12, 1, 2, 36, 1, 0]).await;
+                    state.next_action = Action::Version;
+                }
+                // On GetNode answer no node were found
+                ZwaveCmd::Version(VersionCmd::ClassGet(cls)) => {
+                    state.next_action = Action::VersionCls(cls);
+                }
+                // On GetNode answer no node were found
+                ZwaveCmd::Binary(binary_cmd) => {
+                    match binary_cmd {
+                        BinaryCmd::SetOff => {
+                            BoardNucleoL476Rg::led_red_set(LedMode::Off);
+                            state.led_on = false;
+                        }
+                        BinaryCmd::SetOn  => {
+                            BoardNucleoL476Rg::led_red_set(LedMode::On);
+                            state.led_on = true;
+                        }
+                        BinaryCmd::Get => {
+                            state.next_action = Action::BinaryReport;
+                        }
+                        _ => {}
                     }
                 }
+                // Support the Name/Loc get
+                ZwaveCmd::Naming(naming_cmd) => {
+                    match naming_cmd {
+                        NamingCmd::NameGet => state.next_action = Action::NameReport,
+                        NamingCmd::LocGet  => state.next_action = Action::LocReport,
+                        _ => {}
+                    }
+                }
+                // Ignore unknown commands
                 _ => {}
             }
-            if rx_phy_hdr.hdr_type == ZwaveHdrType::Ack {
-                info!("{} | {} ", state.mode, rx_phy_hdr);
-            } else {
-                info!("{} | {} : {} {}",
-                    status.last_detect(),
-                    rx_phy_hdr, cmd,
-                    if handled {"| Responded"} else {""}
-                );
-            }
+            // Delay the action on TX done if an ACK was requested
+            state.on_tx_done = state.next_action!=Action::None && rx_phy_hdr.ack_req;
         }
-        // Display info
-        else if rx_phy_hdr.hdr_type == ZwaveHdrType::Ack {
+        if rx_phy_hdr.hdr_type == ZwaveHdrType::Ack {
             info!("{} | {}", status.last_detect(), rx_phy_hdr);
         } else {
-            info!("{} | {} : {} : {:02x}",
+            info!("{} | {} : {} | Next: {} ({}) | {:02x}",
                 status.last_detect(),
-                rx_phy_hdr, cmd, npu);
+                rx_phy_hdr, cmd,
+                state.next_action, state.on_tx_done,
+                &lr2021.buffer()[9..nb_byte.max(9)] // Note: Still valid even if the ACK was sent
+            );
         }
     } else {
         info!("[Raw] {} {:02x}",

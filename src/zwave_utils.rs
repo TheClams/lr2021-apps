@@ -90,6 +90,8 @@ pub enum ZwaveCmd {
     Security(SecurityCmd),
     Manufacturer(ManufacturerCmd),
     Version(VersionCmd),
+    Binary(BinaryCmd),
+    Naming(NamingCmd),
     Invalid,
     Unknown,
     NonInterop,
@@ -225,17 +227,69 @@ impl From<u8> for ManufacturerCmd {
 
 #[derive(Debug, Clone, Copy, Format, PartialEq)]
 pub enum VersionCmd {
-    Get = 0x11,
-    Report = 0x12,
+    Get,
+    Report ,
+    ClassGet(u8),
+    ClassReport,
+    Unknown,
+}
+
+impl VersionCmd {
+    fn new(value: u8, param: Option<u8>) -> Self {
+        match (value, param) {
+            (0x11,_) => VersionCmd::Get,
+            (0x12,_) => VersionCmd::Report,
+            (0x13, Some(v)) => VersionCmd::ClassGet(v),
+            (0x14,_) => VersionCmd::ClassReport,
+            _    => VersionCmd::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Format, PartialEq)]
+pub enum BinaryCmd {
+    SetOff = 0x01,
+    SetOn = 0x81,
+    Get = 0x02,
+    ReportOn = 0x03,
+    ReportOff = 0x83,
     Unknown = 0xFF,
 }
 
-impl From<u8> for VersionCmd {
+impl From<u8> for BinaryCmd {
     fn from(value: u8) -> Self {
         match value {
-            0x11 => VersionCmd::Get,
-            0x12 => VersionCmd::Report,
-            _    => VersionCmd::Unknown,
+            0x01 => BinaryCmd::SetOff,
+            0x81 => BinaryCmd::SetOn,
+            0x02 => BinaryCmd::Get,
+            0x03 => BinaryCmd::ReportOff,
+            0x83 => BinaryCmd::ReportOn,
+            _    => BinaryCmd::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Format, PartialEq)]
+pub enum NamingCmd {
+    NameSet    = 0x01,
+    NameGet    = 0x02,
+    NameReport = 0x03,
+    LocSet     = 0x04,
+    LocGet     = 0x05,
+    LocReport  = 0x06,
+    Unknown    = 0xFF,
+}
+
+impl From<u8> for NamingCmd {
+    fn from(value: u8) -> Self {
+        match value {
+            0x01 => NamingCmd::NameSet   ,
+            0x02 => NamingCmd::NameGet   ,
+            0x03 => NamingCmd::NameReport,
+            0x04 => NamingCmd::LocSet    ,
+            0x05 => NamingCmd::LocGet    ,
+            0x06 => NamingCmd::LocReport ,
+            _    => NamingCmd::Unknown,
         }
     }
 }
@@ -261,11 +315,41 @@ impl ZwaveCmd {
                 ZwaveCmd::Manufacturer(cmd)
             }
             0x86 => {
-                let cmd = bytes.get(1).map(|&v| VersionCmd::from(v)).unwrap_or(VersionCmd::Unknown);
+                let Some(&cmd) = bytes.get(1) else {return ZwaveCmd::Invalid;};
+                let cmd = VersionCmd::new(cmd, bytes.get(2).copied());
                 ZwaveCmd::Version(cmd)
+            }
+            0x77 => {
+                let cmd = bytes.get(1).map(|&v| NamingCmd::from(v)).unwrap_or(NamingCmd::Unknown);
+                ZwaveCmd::Naming(cmd)
+            }
+            0x25 => {
+                let Some(&(mut cmd)) = bytes.get(1) else {return ZwaveCmd::Invalid;};
+                // For set and report, get the second byte for the On/Off state
+                if cmd == 1 || cmd == 3 {
+                    let Some(&value) = bytes.get(2) else {return ZwaveCmd::Invalid;};
+                    if value != 0 {
+                        cmd |= 0x80
+                    }
+                }
+                ZwaveCmd::Binary(cmd.into())
             }
             _ => ZwaveCmd::Unknown,
         }
 
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            ZwaveCmd::Prot(ProtCmd::Unknown) |
+            ZwaveCmd::Security(SecurityCmd::Unknown) |
+            ZwaveCmd::Manufacturer(ManufacturerCmd::Unknown) |
+            ZwaveCmd::Version(VersionCmd::Unknown) |
+            ZwaveCmd::Binary(BinaryCmd::Unknown) => true,
+            ZwaveCmd::Invalid => true,
+            ZwaveCmd::Unknown => true,
+            ZwaveCmd::NonInterop => true,
+            _ => false,
+        }
     }
 }
