@@ -17,6 +17,12 @@ The `lora_txrx` demonstrate a simple packet TX/RX between 2 boards using LoRa (S
  * single press in TX sends a packet
  * single press in RX show some stats
 
+The `lora_ranging` demonstrate ranging exchange between 2 boards (SF7/BW1000):
+ * long press allow to change the board role (Initiator or Responder)
+ * single press in Initiator start a burst of 20 ranging exhcnage
+ * single press in Responder show some stats
+ * double press enable frequency hopping between each exchange
+
 ## FSK
 
 The `fsk_txrx` demonstrate a simple packet TX/RX between 2 boards in GFSK:

@@ -5,7 +5,7 @@ version = "0.1.0"
 license = "MIT"
 
 [dependencies]
-lr2021 = {version = "0.6.0", features=["defmt"]}
+lr2021 = {version = "0.7.0", features=["defmt"]}
 # lr2021 = {version = "*", path = "../lr2021", features=["defmt"]}
 
 embassy-stm32 = { version = "0.2.0", features = [ "defmt", "unstable-pac", "stm32l476rg", "memory-x", "time-driver-any", "exti", "chrono", "dual-bank"]  }
@@ -49,3 +49,70 @@ embassy-futures = {git = "https://github.com/embassy-rs/embassy", rev = "aba545a
 
 [profile.release]
 debug = 2
+
+# Disable test when running all target to avoid issue with rust-analyzer
+[lib]
+test = false
+doctest = false
+bench = false
+
+[[bin]]
+name = "adsb_rx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "ble_txrx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "blinky_mode"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "blinky_push"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "flrc_txrx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "fsk_txrx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "get_temp"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "get_version"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "lora_ranging"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "lora_txrx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "rssi"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "zwave_txrx"
+test = false
+doctest = false
+bench = false
