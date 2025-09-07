@@ -39,6 +39,8 @@ const NPU_NODE_INFO : [u8;12] = [
     0x86, // Version
 ];
 
+const HDR_LEN : usize = 9;
+
 const PHY_HDR: ZwavePhyHdr = ZwavePhyHdr {
     home_id: 0x0184E19D,
     src: 0, //
@@ -241,13 +243,13 @@ async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
 }
 
 async fn send_message(lr2021: &mut Lr2021Stm32, state: &mut BoardState, msg: &[u8]) {
-    let len = msg.len() + 9;
+    let len = msg.len() + HDR_LEN;
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     let params = ZwavePacketParams::from_mode(state.mode, ZwavePpduKind::SingleCast, len as u8);
     lr2021.set_zwave_packet(&params).await.expect("SetPacket");
-    lr2021.buffer_mut()[..9].copy_from_slice(&state.phy_hdr.to_bytes((len+1) as u8)); // +1 for CRC
-    if len > 9 {
-        lr2021.buffer_mut()[9..len].copy_from_slice(msg);
+    lr2021.buffer_mut()[..HDR_LEN].copy_from_slice(&state.phy_hdr.to_bytes((len+1) as u8)); // +1 for CRC
+    if len > HDR_LEN {
+        lr2021.buffer_mut()[HDR_LEN..len].copy_from_slice(msg);
     }
     lr2021.wr_tx_fifo(len).await.expect("FIFO write");
     // For Ack packet we need to respect some precise timing: check timestamp and use a TX trigger
@@ -280,10 +282,8 @@ async fn handle_rx_pkt(lr2021: &mut Lr2021Stm32, state: &mut BoardState) {
         let cmd = ZwaveCmd::parse(npdu);
         // Extremly basic handling of some ZWave command to join a network
         if state.is_active {
-            // Send packet to the source with an unitialized source address
-            let ctrl_id = rx_phy_hdr.src;
             // Default destination to TX node
-            state.phy_hdr.dst = ctrl_id;
+            state.phy_hdr.dst = rx_phy_hdr.src;
             state.phy_hdr.seq_num = rx_phy_hdr.seq_num;
             // Clear state action
             state.on_tx_done = false;

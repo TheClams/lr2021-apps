@@ -116,3 +116,8 @@ name = "zwave_txrx"
 test = false
 doctest = false
 bench = false
+[[bin]]
+name = "zigbee_txrx"
+test = false
+doctest = false
+bench = false
