@@ -15,7 +15,7 @@ use embassy_futures::select::{select, Either};
 
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
-    lora::{HeaderType, Ldro, LoraBw, LoraCr, Sf},
+    lora::{LoraBw, LoraModulationParams, LoraPacketParams, Sf},
     radio::{PacketType, RampTime, RxBoost, RxPath},
     status::{Intr, IRQ_MASK_RX_DONE},
     system::{ChipMode, DioNum}
@@ -46,10 +46,13 @@ async fn main(spawner: Spawner) {
         Err(e) => warn!("Calibration Failed: {}", e),
     }
 
+    let modulation = LoraModulationParams::basic(Sf::Sf5, LoraBw::Bw1000);
+    let packet_params = LoraPacketParams::basic(PLD_SIZE, &modulation);
+
     lr2021.set_packet_type(PacketType::Lora).await.expect("Setting packet type");
-    lr2021.set_lora_modulation(Sf::Sf5, LoraBw::Bw1000, LoraCr::Cr1Ham45Si, Ldro::Off).await.expect("Setting packet type");
+    lr2021.set_lora_modulation(&modulation).await.expect("Setting packet type");
     // Packet Preamble 8 Symbols, 10 Byte payload, Explicit header with CRC and up-chirp
-    lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");
+    lr2021.set_lora_packet(&packet_params).await.expect("Setting packet parameters");
     lr2021.set_tx_params(0, RampTime::Ramp8u).await.expect("Setting TX parameters");
 
     // Start RX continuous
@@ -123,7 +126,7 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
         BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
         info!(" -> Switched to RX");
     } else {
-        lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");
+        // lr2021.set_lora_packet(8, PLD_SIZE, HeaderType::Explicit, true, false).await.expect("Setting packet parameters");
         BoardNucleoL476Rg::led_red_set(LedMode::BlinkSlow);
         BoardNucleoL476Rg::led_green_set(LedMode::Off);
         info!(" -> Switching to FS: ready for TX");
