@@ -65,9 +65,6 @@ async fn main(spawner: Spawner) {
     lr2021.set_rx_gain(13).await.ok();
     lr2021.set_rx(0xFFFFFFFF, true).await.ok();
     BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
-    // Configure RSSI for fine measurement
-    let cfg_rssi = lr2021.rd_reg(0xF3014C).await.expect("GetRssiCfg");
-    lr2021.wr_reg(0xF3014C, (cfg_rssi & 0xFFFFF0FF) | (7<<3)).await.expect("SetRssiCfg");
 
     // let mut s: String<32> = String::new();
     spawner.spawn(send_to_uart(uart_tx, &DATA)).unwrap();

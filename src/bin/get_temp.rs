@@ -81,18 +81,14 @@ async fn main(spawner: Spawner) {
         Err(e) => error!("{}", e),
     }
 
-    // Create the GetTemp command once
-    let cmd = system::get_temp_req(TempSrc::Vbe, AdcRes::Res13bit);
-
     // Get periodic temperature measurement
     loop {
         Timer::after_secs(10).await;
-        let mut temp = system::TempRsp::new();
-        match lr2021.cmd_rd(&cmd, temp.as_mut()).await {
-            Ok(_) => {
-                info!("Temp = {}", temp);
+        match lr2021.get_temperature(TempSrc::Vbe, AdcRes::Res13bit).await {
+            Ok(t) => {
+                info!("{}.{:02}", t >> 5, ((t&31) * 100) >> 5);
                 s.clear();
-                match core::write!(&mut s, "T = {}\r\n", temp.temp_celsius()) {
+                match core::write!(&mut s, "T = {}\r\n", t) {
                     Ok(_) => {uart.write(s.as_bytes()).await.ok();}
                     Err(_) => {error!("Unable to write string");}
                 }

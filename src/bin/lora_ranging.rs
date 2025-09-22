@@ -26,12 +26,12 @@ use lr2021::{
     system::{ChipMode, DioNum}
 };
 
-const BW : LoraBw = LoraBw::Bw250;
-const SF : Sf = Sf::Sf9;
+const BW : LoraBw = LoraBw::Bw125;
+const SF : Sf = Sf::Sf10;
 const NB_PKT : u8 = 16;
 
 const ADDR_INI: u32 = 0xC0FECD05;
-const ADDR_RSP: u32 = 0xCD05C0FE;
+const ADDR_RSP: u32 = 0xC0FECD05;
 
 const RF_START: u32 = 895_000_000;
 const RF_STOP : u32 = 905_000_000;
@@ -146,8 +146,8 @@ async fn main(spawner: Spawner) {
 
     lr2021.set_packet_type(PacketType::Ranging).await.expect("Setting packet type");
     lr2021.patch_ranging_rf().await.expect("PatchRangingRf");
-    lr2021.set_lora_modulation(&modulation).await.expect("Setting packet type");
-    lr2021.set_ranging_dev_addr(ADDR_INI, None).await.expect("SetDevAddr");
+    lr2021.set_ranging_modulation(&modulation, false).await.expect("SetModulation");
+    lr2021.set_ranging_dev_addr(ADDR_RSP, None).await.expect("SetDevAddr"); // Default role is responder
     lr2021.set_ranging_req_addr(ADDR_RSP).await.expect("SetReqAddr");
     lr2021.set_ranging_params(true, false, 12).await.expect("SetRangingParams");
     let delay = lr2021.get_ranging_base_delay(&modulation);
@@ -198,6 +198,7 @@ async fn main(spawner: Spawner) {
                     ButtonPressKind::Long => {
                         state.toggle_role();
                         let addr = if state.initiator {ADDR_INI} else {ADDR_RSP} ;
+                        lr2021.set_ranging_modulation(&modulation, state.initiator).await.expect("SetModulation");
                         lr2021.set_ranging_dev_addr(addr, None).await.expect("SetDevAddr");
                         switch_mode(&mut lr2021, state.initiator).await;
                     }
