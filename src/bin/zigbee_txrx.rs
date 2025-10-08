@@ -65,7 +65,7 @@ async fn main(spawner: Spawner) {
     lr2021.set_tx_params(0, RampTime::Ramp8u).await.expect("SetTxParam");
     lr2021.set_fallback(FallbackMode::Fs).await.expect("Set fallback");
 
-    // Configure Zigbee: scan in EU
+    // Configure Zigbee
     lr2021.set_packet_type(PacketType::Zigbee).await.expect("SetPkt");
     let params = ZigbeePacketParams::new(ZigbeeMode::Oqpsk250, 127, false);
     lr2021.set_zigbee_packet(&params).await.expect("SetPkt");
