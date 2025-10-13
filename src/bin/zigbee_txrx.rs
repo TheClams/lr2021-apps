@@ -123,9 +123,9 @@ async fn main(spawner: Spawner) {
 
 async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf) {
     let intr = lr2021.get_and_clear_irq().await.expect("GetIrqs");
-    let stat = lr2021.get_zigbee_rx_stats_adv().await.expect("RX Stats");
-    info!("[RX] Stats: RX={}, CRC ok={}, CRC err={}, Len err={}, Sync Fail={} | {}",
-        stat.pkt_rx(), stat.crc_ok(), stat.crc_error(), stat.len_error(), stat.sync_fail(), intr);
+    let stat = lr2021.get_zigbee_rx_stats().await.expect("RX Stats");
+    info!("[RX] Stats: RX={},  CRC err={}, Len err={} | {}",
+        stat.pkt_rx(), stat.crc_error(), stat.len_error(), intr);
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     lr2021.clear_rx_stats().await.unwrap();
     lr2021.clear_rx_fifo().await.unwrap();
@@ -135,13 +135,11 @@ async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf) {
 }
 
 async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
-    let stats = lr2021.get_zigbee_rx_stats_adv().await.expect("RX stats");
-    info!("[RX] Clearing stats | RX={}, CRC Err={}, LenErr={}, SyncFail={}, Timeout={}",
+    let stats = lr2021.get_zigbee_rx_stats().await.expect("RX stats");
+    info!("[RX] Clearing stats | RX={}, CRC Err={}, LenErr={}",
         stats.pkt_rx(),
         stats.crc_error(),
-        stats.len_error(),
-        stats.sync_fail(),
-        stats.timeout(),
+        stats.len_error()
     );
     lr2021.clear_rx_stats().await.unwrap();
 }

@@ -210,8 +210,7 @@ async fn main(spawner: Spawner) {
                     Ok(intr) => {
                         // Interrupt handling
                         if intr.rng_resp_done() {
-                            let fei = lr2021.get_lora_fei().await.expect("Rd Freq");
-                            info!("Response Done : FEI = {}", fei);
+                            info!("Response Done");
                             BoardNucleoL476Rg::led_green_set(LedMode::Flash);
                         } else if intr.rng_req_dis() {
                             info!("Request discarded ! {}", intr);

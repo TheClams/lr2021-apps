@@ -128,11 +128,11 @@ async fn main(spawner: Spawner) {
                     (ButtonPressKind::Short, BoardRole::Tx) => send_beacon(&mut lr2021).await,
                     // Short press in RX => Show stats
                     (ButtonPressKind::Short, BoardRole::Rx|BoardRole::TxAuto) => {
-                        let stat = lr2021.get_ble_rx_stats_adv().await.expect("RX Stats");
+                        let stat = lr2021.get_ble_rx_stats().await.expect("RX Stats");
                         addr_seen.clear();
                         role.toggle_auto();
-                        info!("[RX] Switching to {} | Stats: RX={}, CRC ok={}, CRC err={}, Len err={}, Sync Fail={}",
-                            role, stat.pkt_rx(), stat.crc_ok(), stat.crc_error(), stat.len_error(), stat.sync_fail());
+                        info!("[RX] Switching to {} | Stats: RX={}, CRC err={}, Len err={}",
+                            role, stat.pkt_rx(), stat.crc_error(), stat.len_error());
                     }
                     // Long press: switch role TX/RX
                     (ButtonPressKind::Long, _) => {
@@ -198,9 +198,9 @@ async fn main(spawner: Spawner) {
 
 async fn switch_channel(lr2021: &mut Lr2021Stm32, chan: AdvChanRf, addr_seen: &AddrList, is_rx: bool) {
     let intr = lr2021.get_and_clear_irq().await.expect("GetIrqs");
-    let stat = lr2021.get_ble_rx_stats_adv().await.expect("RX Stats");
-    info!("[RX] Stats: RX={}, CRC ok={}, CRC err={}, Len err={}, Sync Fail={} | {}",
-        stat.pkt_rx(), stat.crc_ok(), stat.crc_error(), stat.len_error(), stat.sync_fail(), intr);
+    let stat = lr2021.get_ble_rx_stats().await.expect("RX Stats");
+    info!("[RX] Stats: RX={}, CRC err={}, Len err={} | {}",
+        stat.pkt_rx(), stat.crc_error(), stat.len_error(), intr);
     lr2021.clear_rx_stats().await.unwrap();
     lr2021.clear_rx_fifo().await.unwrap();
     if addr_seen.size() > 0 {

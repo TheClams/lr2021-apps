@@ -6,14 +6,13 @@
 // Double press alternate between the two ADS-B channel 1090 and 978MHz
 // Short press display RX stats
 
-const RSSI_MARGIN : i8 = 15; // Margin in dB above noise level for detection
+const RSSI_MARGIN : i16 = 15; // Margin in dB above noise level for detection
 
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_time::Duration;
 
 use core::fmt::Write;
 use heapless::String;
@@ -75,7 +74,7 @@ async fn main(spawner: Spawner) {
 
     // Setup radio to max gain (saturation unlikely in ADS-B and AGC might induce packet loss)
     lr2021.set_rx_gain(13).await.expect("SetGain");
-    lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRX");
+    lr2021.set_rx_continous().await.expect("SetRX");
 
     // Adjust the detection threshold to avoid false detection due to high noise level
     auto_thr(&mut lr2021).await;
@@ -103,7 +102,7 @@ async fn main(spawner: Spawner) {
                         info!("Switching to {}", chan);
                         lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
                         lr2021.set_rf(chan.freq()).await.expect("SetRF");
-                        lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
+                        lr2021.set_rx_continous().await.expect("SetRx");
                         auto_thr(&mut lr2021).await;
                     }
                 }
@@ -155,9 +154,13 @@ async fn read_pkt(lr2021: &mut Lr2021Stm32, intr: Intr) -> Option<OokPacketStatu
 
 /// Automatically adjust the OOK detectio threshold based on RSSI measurement
 async fn auto_thr(lr2021: &mut Lr2021Stm32) {
-    let rssi = lr2021.get_rssi_avg(Duration::from_micros(10)).await.expect("RssiAvg");
+    lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFS");
+    let cca_info = lr2021.set_and_get_cca(320, None).await.expect("SetCCA");
+    let rssi_dbm = - ((cca_info.rssi_min() >> 1) as i16);
     // Estimate threshold
-    let thr = 64 + RSSI_MARGIN - ((rssi>>1) as i8);
-    lr2021.set_ook_thr(thr).await.expect("SetOokThr");
-    info!("RSSI = -{}dBm -> thr = {}", rssi>>1, thr);
+    let thr = 64 + RSSI_MARGIN + rssi_dbm;
+    lr2021.set_ook_thr(thr as i8).await.expect("SetOokThr");
+    // Restart reception in continuous mode
+    lr2021.set_rx_continous().await.expect("SetRX");
+    info!("RSSI = {}dBm -> thr = {}", rssi_dbm, thr);
 }

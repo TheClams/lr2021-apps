@@ -9,7 +9,7 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 
 use core::fmt::Write;
 use heapless::String;
@@ -23,7 +23,6 @@ const RF_MIN : u32 =  400_000_000;
 const RF_MAX : u32 = 1100_000_000;
 const RF_STEP: u32 =      250_000;
 const RX_BW  : RxBw =  RxBw::Bw256;
-const MEAS_US: u64 = 200;
 
 pub type SignalData = Signal<CriticalSectionRawMutex, (u32,u16)>;
 static DATA : SignalData = Signal::new();
@@ -73,7 +72,7 @@ async fn main(spawner: Spawner) {
     let mut rf_max  = RF_MAX;
     let mut rf_step = RF_STEP;
     loop {
-        let rssi = lr2021.get_rssi_avg(Duration::from_micros(MEAS_US)).await.expect("RssiAvg");
+        let rssi = lr2021.get_rssi_avg(16).await.expect("RssiAvg");
         // Wait for the UART to be ready
         while DATA.signaled() {
             Timer::after_micros(10).await;

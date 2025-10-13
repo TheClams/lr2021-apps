@@ -11,7 +11,6 @@
 
 use defmt::*;
 use embassy_stm32::{mode::Async, usart::Uart};
-use embassy_time::Duration;
 use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
@@ -26,7 +25,7 @@ use lr2021::{
 };
 
 /// Margin in dB above noise level for detection
-const RSSI_MARGIN : i8 = 15;
+const RSSI_MARGIN : i16 = 15;
 
 #[derive(Debug, Clone, Copy, Format)]
 enum UartCmd {
@@ -197,11 +196,15 @@ pub async fn handle_uart(mut uart: Uart<'static, Async>, sig_cmd: &'static Signa
     }
 }
 
-/// Automatically adjust the OOK detection threshold based on RSSI measurement
+/// Automatically adjust the OOK detectio threshold based on RSSI measurement
 async fn auto_thr(lr2021: &mut Lr2021Stm32) {
-    let rssi = lr2021.get_rssi_avg(Duration::from_millis(2)).await.expect("RssiAvg");
+    lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFS");
+    let cca_info = lr2021.set_and_get_cca(320, None).await.expect("SetCCA");
+    let rssi_dbm = - ((cca_info.rssi_min() >> 1) as i16);
     // Estimate threshold
-    let thr = 64 + RSSI_MARGIN - ((rssi>>1) as i8);
-    lr2021.set_ook_thr(thr).await.expect("SetOokThr");
-    info!("RSSI = -{}dBm -> thr = {}", rssi>>1, thr);
+    let thr = 64 + RSSI_MARGIN + rssi_dbm;
+    lr2021.set_ook_thr(thr as i8).await.expect("SetOokThr");
+    // Restart reception in continuous mode
+    lr2021.set_rx_continous().await.expect("SetRX");
+    info!("RSSI = {}dBm -> thr = {}", rssi_dbm, thr);
 }

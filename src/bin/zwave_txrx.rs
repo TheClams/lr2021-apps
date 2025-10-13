@@ -231,13 +231,11 @@ async fn main(spawner: Spawner) {
 }
 
 async fn show_and_clear_rx_stats(lr2021: &mut Lr2021Stm32) {
-    let stats = lr2021.get_zwave_rx_stats_adv().await.expect("RX stats");
-    info!("[RX] Clearing stats | RX={}, CRC Err={}, LenErr={}, SyncFail={}, Timeout={}",
+    let stats = lr2021.get_zwave_rx_stats().await.expect("RX stats");
+    info!("[RX] Clearing stats | RX={}, CRC Err={}, LenErr={}",
         stats.pkt_rx(),
         stats.crc_error(),
-        stats.len_error(),
-        stats.sync_fail(),
-        stats.timeout(),
+        stats.len_error()
     );
     lr2021.clear_rx_stats().await.unwrap();
 }
