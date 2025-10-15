@@ -1,12 +1,13 @@
 #![no_std]
 #![no_main]
 
-//! # FSK TX/RX demo application
+//! # WiSUN TX/RX demo application
 //!
 //! Slow blinking led green is for RX, red is for TX
 //! In RX mode, the red led flash when a CRC error is detected, and the green led flash on CRC OK
 //! Long press on user button switch the board role between TX and RX
 //! Short press either send a packet of incrementing byte or display RX stats in RX
+//! Double press change WiSUN mode
 //!
 //! The board also accept command by UART (running at 444_444bauds), one character per command:
 //!  - 's' to switch mode
@@ -25,17 +26,14 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
-    fsk::{AddrComp, BitOrder, Crc, FskPktFormat, PblLenDetect, PldLenUnit},
-    radio::{PacketType, RampTime, RxBoost, RxPath},
-    status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE},
-    system::{ChipMode, DioNum}, PulseShape, RxBw
+    radio::{PacketType, RampTime, RxBoost, RxPath}, status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE}, system::{ChipMode, DioNum}, wisun::*, Lr2021Error, RxBw
 };
 
 const PLD_SIZE : u8 = 10;
 
 #[derive(Debug, Clone, Copy, Format)]
 enum UartCmd {
-    SwitchTxRx, ChangeModIdx, ToggleAuto, StartTx, Invalid
+    SwitchTxRx, ChangeMode, ToggleAuto, StartTx, Invalid
 }
 type SignalCmd = Signal<CriticalSectionRawMutex, UartCmd>;
 static CMD : SignalCmd = Signal::new();
@@ -52,7 +50,9 @@ async fn main(spawner: Spawner) {
 
     // Packet ID: correspond to first byte sent
     let mut pkt_id = 0_u8;
-    let mut fdev = 62500;
+    let mut mode = WisunMode::Mode1a;
+    // let params = WisunPacketParams::new_data(12, WisunFec::RscIntlvr, WisunFcsLen::Fcs16b);
+    let params = WisunPacketParams::new_data(12, WisunFec::Nrnsc, WisunFcsLen::Fcs16b);
 
     // Initialize transceiver for FSK communication
     // 901MHz, 0dbM, SF5 BW1000, CR 4/5
@@ -65,14 +65,14 @@ async fn main(spawner: Spawner) {
         Err(e) => warn!("Calibration Failed: {}", e),
     }
 
-    lr2021.set_packet_type(PacketType::FskLegacy).await.expect("SetPktType");
-    lr2021.set_fsk_modulation(250_000, PulseShape::Bt0p5, RxBw::Bw444, fdev).await.expect("SetFskModulation");
-    lr2021.set_fsk_syncword(0xCD05DEAD, BitOrder::LsbFirst, 32).await.expect("SetSyncword");
-    lr2021.set_fsk_packet(8, PblLenDetect::None, false, PldLenUnit::Bytes, AddrComp::Off, FskPktFormat::Variable8bit, 10, Crc::Crc2Byte, true).await.expect("SetPkt");
-    lr2021.set_tx_params(0, RampTime::Ramp8u).await.expect("Setting TX parameters");
+    lr2021.set_packet_type(PacketType::Wisun).await.expect("SetPktType");
+    lr2021.set_wisun_modulation(mode, RxBw::BwAuto).await.expect("SetModulation");
+    lr2021.set_wisun_packet(params).await.expect("SetPktParams");
+
+    lr2021.set_tx_params(0, RampTime::Ramp32u).await.expect("Setting TX parameters");
 
     // Start RX continuous
-    match lr2021.set_rx(0xFFFFFFFF, true).await {
+    match lr2021.set_rx_continous().await {
         Ok(_) => info!("[RX] Searching Preamble"),
         Err(e) => error!("Fail while set_rx() : {}", e),
     }
@@ -110,10 +110,13 @@ async fn main(spawner: Spawner) {
                     (ButtonPressKind::Double, BoardRole::Tx) => {
                         auto_tx = !auto_tx;
                     }
+                    (ButtonPressKind::Double, BoardRole::Rx) => {
+                        switch_mode(&mut lr2021, &mut mode, role.is_rx()).await.expect("SwitchMode");
+                    }
                     // Long press: switch role TX/RX
                     (ButtonPressKind::Long, _) => {
                         role.toggle();
-                        switch_mode(&mut lr2021, role.is_rx()).await;
+                        switch_txrx(&mut lr2021, role.is_rx()).await;
                     }
                     (n, r) => warn!("{} in role {} not implemented !", n, r),
                 }
@@ -141,20 +144,14 @@ async fn main(spawner: Spawner) {
                 match cmd {
                     UartCmd::SwitchTxRx => {
                         role.toggle();
-                        switch_mode(&mut lr2021, role.is_rx()).await;
+                        switch_txrx(&mut lr2021, role.is_rx()).await;
                     }
-                    UartCmd::ChangeModIdx => {
-                        lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
-                        fdev = if fdev == 125000 {62500} else {125000};
-                        info!("Changing FDev tp {}kHz", fdev);
-                        lr2021.set_fsk_modulation(250_000, PulseShape::Bt0p5, RxBw::Bw444, fdev).await.expect("SetFskModulation");
-                        if role.is_rx() {
-                            lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
-                        }
+                    UartCmd::ChangeMode => {
+                        switch_mode(&mut lr2021, &mut mode, role.is_rx()).await.expect("SwitchMode");
                     }
                     UartCmd::ToggleAuto => {
                         auto_tx = !auto_tx;
-                        info!("Auto Mode {}", auto_tx);
+                        info!("Auto TX {}", auto_tx);
                     }
                     UartCmd::StartTx => send_pkt(&mut lr2021, &mut pkt_id).await,
                     UartCmd::Invalid => {},
@@ -187,7 +184,7 @@ async fn send_pkt(lr2021: &mut Lr2021Stm32, pkt_id: &mut u8) {
     *pkt_id += 1;
 }
 
-async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
+async fn switch_txrx(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFs");
     if is_rx {
         lr2021.set_rx(0xFFFFFFFF, true).await.expect("SetRx");
@@ -199,6 +196,27 @@ async fn switch_mode(lr2021: &mut Lr2021Stm32, is_rx: bool) {
         BoardNucleoL476Rg::led_green_set(LedMode::Off);
         info!(" -> Ready for TX: press button to start periodic packet transmission");
     }
+}
+
+async fn switch_mode(lr2021: &mut Lr2021Stm32, mode: &mut WisunMode, is_rx: bool) -> Result<(), Lr2021Error> {
+    lr2021.set_chip_mode(ChipMode::Fs).await?;
+    *mode = match mode {
+        WisunMode::Mode1a => WisunMode::Mode1b,
+        WisunMode::Mode1b => WisunMode::Mode2a,
+        WisunMode::Mode2a => WisunMode::Mode2b,
+        WisunMode::Mode2b => WisunMode::Mode3,
+        WisunMode::Mode3  => WisunMode::Mode4a,
+        WisunMode::Mode4a => WisunMode::Mode4b,
+        WisunMode::Mode4b => WisunMode::Mode5,
+        WisunMode::Mode5  => WisunMode::Mode1a,
+    };
+    lr2021.set_wisun_modulation(*mode, RxBw::BwAuto).await?;
+    info!("Switching to {}", mode);
+
+    if is_rx {
+        lr2021.set_rx_continous().await?;
+    }
+    Ok(())
 }
 
 async fn show_rx_pkt(lr2021: &mut Lr2021Stm32) {
@@ -225,7 +243,7 @@ pub async fn handle_uart(mut uart: Uart<'static, Async>, sig_cmd: &'static Signa
             b'S' | b's' => UartCmd::SwitchTxRx,
             b'T' | b't' => UartCmd::StartTx,
             b'A' | b'a' => UartCmd::ToggleAuto,
-            b'H' | b'h' => UartCmd::ChangeModIdx,
+            b'H' | b'h' => UartCmd::ChangeMode,
             _ => UartCmd::Invalid,
         };
         // info!("[UART] Command = {}", cmd);

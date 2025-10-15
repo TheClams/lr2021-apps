@@ -126,3 +126,8 @@ name = "rts_txrx"
 test = false
 doctest = false
 bench = false
+[[bin]]
+name = "wisun_txrx"
+test = false
+doctest = false
+bench = false
