@@ -131,3 +131,8 @@ name = "wisun_txrx"
 test = false
 doctest = false
 bench = false
+[[bin]]
+name = "wmbus_txrx"
+test = false
+doctest = false
+bench = false

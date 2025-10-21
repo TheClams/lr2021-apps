@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-//! # WiSUN TX/RX demo application
+//! # Wireless MBus TX/RX demo application
 //!
 //! Slow blinking led green is for RX, red is for TX
 //! In RX mode, the red led flash when a CRC error is detected, and the green led flash on CRC OK
@@ -12,12 +12,10 @@
 //! The board also accept command by UART (running at 444_444bauds), one character per command:
 //!  - 's' to switch mode
 //!  - 't' to transmit a packet
-//!  - 'a' to toggle auto mode in transmit to have one packet every 250ms
 //!  - 'h' to alternate between two modulation index (0.5 and 1.0)
 
 use defmt::*;
 use embassy_stm32::{mode::Async, usart::Uart};
-use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
 use embassy_executor::Spawner;
@@ -26,14 +24,14 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 
 use lr2021_apps::board::{BoardNucleoL476Rg, BoardRole, ButtonPressKind, LedMode, Lr2021Stm32};
 use lr2021::{
-    radio::{PacketType, RampTime, RxBoost, RxPath}, status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE}, system::{ChipMode, DioNum}, wisun::*, Lr2021Error, RxBw
+    radio::{PacketType, RampTime, RxBoost, RxPath}, status::{Intr, IRQ_MASK_RX_DONE, IRQ_MASK_TX_DONE}, system::{ChipMode, DioNum}, wmbus::*, Lr2021Error
 };
 
 const PLD_SIZE : u8 = 10;
 
 #[derive(Debug, Clone, Copy, Format)]
 enum UartCmd {
-    SwitchTxRx, ChangeMode, ToggleAuto, StartTx, Invalid
+    SwitchTxRx, ChangeMode, StartTx, Invalid
 }
 type SignalCmd = Signal<CriticalSectionRawMutex, UartCmd>;
 static CMD : SignalCmd = Signal::new();
@@ -50,12 +48,11 @@ async fn main(spawner: Spawner) {
 
     // Packet ID: correspond to first byte sent
     let mut pkt_id = 0_u8;
-    let mut mode = WisunMode::Mode1a;
-    // let params = WisunPacketParams::new_data(12, WisunFec::RscIntlvr, WisunFcsLen::Fcs16b);
-    let params = WisunPacketParams::new_data(12, WisunFec::Nrnsc, WisunFcsLen::Fcs16b);
+    let mut mode = WmbusMode::ModeS;
 
-    // Initialize transceiver for WiSUN communication
-    lr2021.set_rf(901_000_000).await.expect("Setting RF to 901MHz");
+    // Initialize transceiver for WMBus communication
+    let rf = mode.rf(0, WmbusSubBand::A);
+    lr2021.set_rf(rf).await.expect("SetRF");
     lr2021.set_rx_path(RxPath::LfPath, RxBoost::Off).await.expect("Setting RX path to LF");
     lr2021.calib_fe(&[]).await.expect("Front-End calibration");
 
@@ -64,9 +61,9 @@ async fn main(spawner: Spawner) {
         Err(e) => warn!("Calibration Failed: {}", e),
     }
 
-    lr2021.set_packet_type(PacketType::Wisun).await.expect("SetPktType");
-    lr2021.set_wisun_modulation(mode, RxBw::BwAuto).await.expect("SetModulation");
-    lr2021.set_wisun_packet(params).await.expect("SetPktParams");
+    let params = WmbusPacketParams::new(mode, WmbusFormat::FormatA, PLD_SIZE);
+    lr2021.set_packet_type(PacketType::Wmbus).await.expect("SetPktType");
+    lr2021.set_wmbus_packet(params).await.expect("SetPktParams");
 
     lr2021.set_tx_params(0, RampTime::Ramp32u).await.expect("Setting TX parameters");
 
@@ -84,8 +81,6 @@ async fn main(spawner: Spawner) {
     BoardNucleoL476Rg::led_green_set(LedMode::BlinkSlow);
 
     let mut role = BoardRole::Rx;
-    let mut auto_tx = true;
-    let mut tx_on = false;
 
     loop {
         match select3(button_press.changed(), irq.wait_for_rising_edge(), CMD.wait()).await {
@@ -94,22 +89,9 @@ async fn main(spawner: Spawner) {
                     // Short press in RX => clear stats
                     (ButtonPressKind::Short, BoardRole::Rx) => show_and_clear_rx_stats(&mut lr2021).await,
                     // Short press in TX => send a packet
-                    (ButtonPressKind::Short, BoardRole::Tx) => {
-                        if auto_tx {
-                            if tx_on {
-                                lr2021.set_chip_mode(ChipMode::Fs).await.expect("SetFS");
-                                tx_on = false;
-                                continue;
-                            } else {
-                                tx_on = true;
-                            }
-                        }
-                        send_pkt(&mut lr2021, &mut pkt_id).await;
-                    }
-                    (ButtonPressKind::Double, BoardRole::Tx) => {
-                        auto_tx = !auto_tx;
-                    }
-                    (ButtonPressKind::Double, BoardRole::Rx) => {
+                    (ButtonPressKind::Short, BoardRole::Tx) => send_pkt(&mut lr2021, &mut pkt_id).await,
+                    // Change modulation
+                    (ButtonPressKind::Double, _) => {
                         switch_mode(&mut lr2021, &mut mode, role.is_rx()).await.expect("SwitchMode");
                     }
                     // Long press: switch role TX/RX
@@ -125,10 +107,6 @@ async fn main(spawner: Spawner) {
                 let intr = lr2021.get_and_clear_irq().await.expect("GetIrqs");
                 if intr.tx_done() {
                     BoardNucleoL476Rg::led_red_set(LedMode::Flash);
-                    if auto_tx {
-                        Timer::after_millis(250).await;
-                        send_pkt(&mut lr2021, &mut pkt_id).await;
-                    }
 
                 } else if !intr.crc_error() {
                     BoardNucleoL476Rg::led_green_set(LedMode::Flash);
@@ -148,12 +126,8 @@ async fn main(spawner: Spawner) {
                     UartCmd::ChangeMode => {
                         switch_mode(&mut lr2021, &mut mode, role.is_rx()).await.expect("SwitchMode");
                     }
-                    UartCmd::ToggleAuto => {
-                        auto_tx = !auto_tx;
-                        info!("Auto TX {}", auto_tx);
-                    }
                     UartCmd::StartTx => send_pkt(&mut lr2021, &mut pkt_id).await,
-                    UartCmd::Invalid => {},
+                    _ => {},
                 }
             }
         }
@@ -197,20 +171,22 @@ async fn switch_txrx(lr2021: &mut Lr2021Stm32, is_rx: bool) {
     }
 }
 
-async fn switch_mode(lr2021: &mut Lr2021Stm32, mode: &mut WisunMode, is_rx: bool) -> Result<(), Lr2021Error> {
+async fn switch_mode(lr2021: &mut Lr2021Stm32, mode: &mut WmbusMode, is_rx: bool) -> Result<(), Lr2021Error> {
     lr2021.set_chip_mode(ChipMode::Fs).await?;
     *mode = match mode {
-        WisunMode::Mode1a => WisunMode::Mode1b,
-        WisunMode::Mode1b => WisunMode::Mode2a,
-        WisunMode::Mode2a => WisunMode::Mode2b,
-        WisunMode::Mode2b => WisunMode::Mode3,
-        WisunMode::Mode3  => WisunMode::Mode4a,
-        WisunMode::Mode4a => WisunMode::Mode4b,
-        WisunMode::Mode4b => WisunMode::Mode5,
-        WisunMode::Mode5  => WisunMode::Mode1a,
+        WmbusMode::ModeS     => WmbusMode::ModeT1,
+        WmbusMode::ModeT1    => WmbusMode::ModeR2,
+        WmbusMode::ModeR2    => WmbusMode::ModeC1,
+        WmbusMode::ModeC1    => WmbusMode::ModeN4p8,
+        WmbusMode::ModeN4p8  => WmbusMode::ModeN19p2,
+        WmbusMode::ModeN19p2 => WmbusMode::ModeF2,
+        _                    => WmbusMode::ModeS,
     };
-    lr2021.set_wisun_modulation(*mode, RxBw::BwAuto).await?;
-    info!("Switching to {}", mode);
+    let rf = mode.rf(0, WmbusSubBand::A);
+    lr2021.set_rf(rf).await.expect("SetRF");
+    let params = WmbusPacketParams::new(*mode, WmbusFormat::FormatA, PLD_SIZE);
+    lr2021.set_wmbus_packet(params).await.expect("SetPktParams");
+    info!("Switching to {} @ {}Hz", mode, rf);
 
     if is_rx {
         lr2021.set_rx_continous().await?;
@@ -241,7 +217,6 @@ pub async fn handle_uart(mut uart: Uart<'static, Async>, sig_cmd: &'static Signa
         let cmd = match buffer[0] {
             b'S' | b's' => UartCmd::SwitchTxRx,
             b'T' | b't' => UartCmd::StartTx,
-            b'A' | b'a' => UartCmd::ToggleAuto,
             b'H' | b'h' => UartCmd::ChangeMode,
             _ => UartCmd::Invalid,
         };

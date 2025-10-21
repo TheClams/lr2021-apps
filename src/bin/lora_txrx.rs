@@ -138,14 +138,13 @@ async fn show_rx_pkt(lr2021: &mut Lr2021Stm32) {
     let nb_byte = pkt_len.min(16) as usize; // Make sure to not read more than the local buffer size
     lr2021.rd_rx_fifo(nb_byte).await.expect("RX FIFO Read");
     let intr = lr2021.get_and_clear_irq().await.expect("Getting intr");
-    let status = lr2021.get_lora_packet_status_adv().await.expect("RX status");
+    let status = lr2021.get_lora_packet_status().await.expect("RX status");
     let snr = status.snr_pkt();
     let snr_frac = (snr&3) * 25;
-    info!("[RX] Payload = {:02x} | intr={:08x} | RSSI=-{}dBm, SNR={}.{:02}, FEI={}",
+    info!("[RX] Payload = {:02x} | intr={:08x} | RSSI=-{}dBm, SNR={}.{:02}",
         lr2021.buffer()[..nb_byte],
         intr.value(),
         status.rssi_pkt()>>1,
         snr>>2, snr_frac,
-        status.freq_offset()
     );
 }
