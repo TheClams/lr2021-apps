@@ -316,7 +316,7 @@ pub async fn blink(mut led: Output<'static>, signal: &'static SignalLedMode) {
 // Wrapper around blocking SPI to use the non-DMA SPI with the LR2021 driver
 pub struct SpiWrapper(pub Spi<'static,embassy_stm32::mode::Blocking>);
 
-impl embedded_hal_1::spi::ErrorType for SpiWrapper {
+impl embedded_hal::spi::ErrorType for SpiWrapper {
     type Error = embassy_stm32::spi::Error;
 }
 
