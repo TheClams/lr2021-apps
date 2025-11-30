@@ -1,12 +1,7 @@
 use defmt::{info, Format};
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    bind_interrupts,
-    exti::ExtiInput,
-    gpio::{Level, Output, Pull, Speed},
-    mode::Async, spi::{Config as SpiConfig, Spi},
-    time::Hertz,
-    usart::{Config as UartConfig, Uart}
+    Peripherals, bind_interrupts, exti::ExtiInput, gpio::{Level, Output, Pull, Speed}, mode::Async, spi::{Config as SpiConfig, Spi}, time::Hertz, usart::{Config as UartConfig, Uart}
 };
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal, watch::{Receiver, Watch}};
 use embassy_time::{with_timeout, Duration, Timer};
@@ -29,10 +24,33 @@ pub struct BoardNucleoL476Rg {
 /// Generate event when the button is press with short (0) or long (1) duration
 type WatchButtonPress = Watch<CriticalSectionRawMutex, ButtonPressKind, 3>;
 type ButtonRcvr = Receiver<'static, CriticalSectionRawMutex, ButtonPressKind, 3>;
-static BUTTON_PRESS: WatchButtonPress = Watch::new();
+pub static BUTTON_PRESS: WatchButtonPress = Watch::new();
 /// Led modes
-static LED_RED_MODE: SignalLedMode = Signal::new();
-static LED_GREEN_MODE: SignalLedMode = Signal::new();
+pub static LED_RED_MODE: SignalLedMode = Signal::new();
+pub static LED_GREEN_MODE: SignalLedMode = Signal::new();
+
+
+pub fn stm32_init() -> Peripherals {
+    let mut config = embassy_stm32::Config::default();
+
+    // Configure the system clock to run at 80MHz
+    // STM32L476RG has a 16MHz HSI (High Speed Internal) oscillator
+    // PLL formula: (HSI * PLLN) / (PLLM * PLLR) = (16MHz * 10) / (1 * 2) = 80MHz
+    config.rcc.hsi = true;
+    config.rcc.pll = Some(embassy_stm32::rcc::Pll {
+        source: embassy_stm32::rcc::PllSource::HSI,     // Use HSI as PLL source
+        prediv: embassy_stm32::rcc::PllPreDiv::DIV1,    // PLLM = 1
+        mul: embassy_stm32::rcc::PllMul::MUL10,         // PLLN = 10
+        divp: None,                                     // PLLP not used
+        divq: None,                                     // PLLQ not used
+        divr: Some(embassy_stm32::rcc::PllRDiv::DIV2),  // PLLR = 2
+    });
+    config.rcc.sys = embassy_stm32::rcc::Sysclk::PLL1_R;
+    // config.rcc.ahb_pre = embassy_stm32::rcc::AHBPrescaler::DIV1;
+    // config.rcc.apb1_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
+    // config.rcc.apb2_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
+    embassy_stm32::init(config)
+}
 
 impl BoardNucleoL476Rg {
 
@@ -55,25 +73,7 @@ impl BoardNucleoL476Rg {
     // LEDRX | CN8 A4    | PC1
 
     pub async fn init(spawner: &Spawner) -> BoardNucleoL476Rg {
-        let mut config = embassy_stm32::Config::default();
-
-        // Configure the system clock to run at 80MHz
-        // STM32L476RG has a 16MHz HSI (High Speed Internal) oscillator
-        // PLL formula: (HSI * PLLN) / (PLLM * PLLR) = (16MHz * 10) / (1 * 2) = 80MHz
-        config.rcc.hsi = true;
-        config.rcc.pll = Some(embassy_stm32::rcc::Pll {
-            source: embassy_stm32::rcc::PllSource::HSI,     // Use HSI as PLL source
-            prediv: embassy_stm32::rcc::PllPreDiv::DIV1,    // PLLM = 1
-            mul: embassy_stm32::rcc::PllMul::MUL10,         // PLLN = 10
-            divp: None,                                     // PLLP not used
-            divq: None,                                     // PLLQ not used
-            divr: Some(embassy_stm32::rcc::PllRDiv::DIV2),  // PLLR = 2
-        });
-        config.rcc.sys = embassy_stm32::rcc::Sysclk::PLL1_R;
-        // config.rcc.ahb_pre = embassy_stm32::rcc::AHBPrescaler::DIV1;
-        // config.rcc.apb1_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
-        // config.rcc.apb2_pre = embassy_stm32::rcc::APBPrescaler::DIV1;
-        let p = embassy_stm32::init(config);
+        let p = stm32_init();
 
         // Leds & buttons
         let led_red = Output::new(p.PC1, Level::High, Speed::Low);

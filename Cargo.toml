@@ -7,6 +7,8 @@ license = "MIT"
 [dependencies]
 lr2021 = {version = "0.12.0", features=["defmt"]}
 # lr2021 = {version = "*", path = "../lr2021-driver", features=["defmt"]}
+# lr2021-loraphy = {git = "https://github.com/TheClams/lr2021-loraphy"}
+lr2021-loraphy = {version = "*", path = "../lr2021-loraphy"}
 
 embassy-stm32 = { version = "0.4.0", features = [ "defmt", "unstable-pac", "stm32l476rg", "memory-x", "time-driver-any", "exti", "chrono", "dual-bank"]  }
 embassy-sync = { version = "0.7.0", features = ["defmt"] }
@@ -34,6 +36,9 @@ chrono = { version = "^0.4", default-features = false }
 static_cell = "2"
 
 micromath = "2.0.0"
+
+[patch.crates-io]
+lora-phy = { git = "https://github.com/lora-rs/lora-rs"}
 
 [profile.release]
 debug = 2
@@ -91,6 +96,11 @@ doctest = false
 bench = false
 [[bin]]
 name = "lora_txrx"
+test = false
+doctest = false
+bench = false
+[[bin]]
+name = "lora_txrx2"
 test = false
 doctest = false
 bench = false

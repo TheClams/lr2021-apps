@@ -23,6 +23,8 @@ The `lora_ranging` demonstrate ranging exchange between 2 boards (SF7/BW1000):
  * single press in Responder show some stats
  * double press enable frequency hopping between each exchange
 
+The `lora_txrx2` is similar to `lora_txrx` but is using the RadioKind trait from the lora-phy crate which should allow integration with the lorawan stack.
+
 ## FSK
 
 The `fsk_txrx` demonstrate a simple packet TX/RX between 2 boards in GFSK:
