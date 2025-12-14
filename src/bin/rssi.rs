@@ -19,9 +19,9 @@ use lr2021::{
     radio::{PacketType, RxBoost, RxPath}, PulseShape, RxBw
 };
 
-const RF_MIN : u32 =  400_000_000;
-const RF_MAX : u32 = 1100_000_000;
-const RF_STEP: u32 =      250_000;
+const RF_MIN : u32 =   400_000_000;
+const RF_MAX : u32 = 1_100_000_000;
+const RF_STEP: u32 =       250_000;
 const RX_BW  : RxBw =  RxBw::Bw256;
 
 pub type SignalData = Signal<CriticalSectionRawMutex, (u32,u16)>;

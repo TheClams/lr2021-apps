@@ -183,24 +183,24 @@ pub enum BleManufacturer {
 
 impl From<&[u8]> for BleManufacturer {
     fn from(value: &[u8]) -> Self {
-        match value {
-            &[0x00,0x00] => BleManufacturer::Ericsson,
-            &[0x03,0x00] => BleManufacturer::IBM,
-            &[0x06,0x00] => BleManufacturer::Microsoft,
-            &[0x4C,0x00] => BleManufacturer::Apple,
-            &[0x57,0x00] => BleManufacturer::Harman,
-            &[0x59,0x00] => BleManufacturer::Nordic,
-            &[0x75,0x00] => BleManufacturer::Samsung,
-            &[0x76,0x00] => BleManufacturer::Creative,
-            &[0x87,0x00] => BleManufacturer::Garmin,
-            &[0x89,0x00] => BleManufacturer::GnHearing,
-            &[0x30,0x00] => BleManufacturer::STMicroelectronics,
-            &[0x2D,0x01] => BleManufacturer::Sony,
-            &[0xDA,0x01] => BleManufacturer::Logitech,
-            &[0xF9,0x02] => BleManufacturer::Imagination,
-            &[0x8F,0x03] => BleManufacturer::Xiaomi,
-            &[0x07,0xC9] => BleManufacturer::SkullCandy,
-            &[b0,b1] => BleManufacturer::Unknown(((b1 as u16) << 8) | b0 as u16),
+        match *value {
+            [0x00,0x00] => BleManufacturer::Ericsson,
+            [0x03,0x00] => BleManufacturer::IBM,
+            [0x06,0x00] => BleManufacturer::Microsoft,
+            [0x4C,0x00] => BleManufacturer::Apple,
+            [0x57,0x00] => BleManufacturer::Harman,
+            [0x59,0x00] => BleManufacturer::Nordic,
+            [0x75,0x00] => BleManufacturer::Samsung,
+            [0x76,0x00] => BleManufacturer::Creative,
+            [0x87,0x00] => BleManufacturer::Garmin,
+            [0x89,0x00] => BleManufacturer::GnHearing,
+            [0x30,0x00] => BleManufacturer::STMicroelectronics,
+            [0x2D,0x01] => BleManufacturer::Sony,
+            [0xDA,0x01] => BleManufacturer::Logitech,
+            [0xF9,0x02] => BleManufacturer::Imagination,
+            [0x8F,0x03] => BleManufacturer::Xiaomi,
+            [0x07,0xC9] => BleManufacturer::SkullCandy,
+            [b0,b1] => BleManufacturer::Unknown(((b1 as u16) << 8) | b0 as u16),
             _ => BleManufacturer::Unknown(0xFFFF)
         }
     }

@@ -340,16 +340,13 @@ impl ZwaveCmd {
     }
 
     pub fn is_unknown(&self) -> bool {
-        match self {
+        matches!(self,
             ZwaveCmd::Prot(ProtCmd::Unknown) |
             ZwaveCmd::Security(SecurityCmd::Unknown) |
             ZwaveCmd::Manufacturer(ManufacturerCmd::Unknown) |
             ZwaveCmd::Version(VersionCmd::Unknown) |
-            ZwaveCmd::Binary(BinaryCmd::Unknown) => true,
-            ZwaveCmd::Invalid => true,
-            ZwaveCmd::Unknown => true,
-            ZwaveCmd::NonInterop => true,
-            _ => false,
-        }
+            ZwaveCmd::Binary(BinaryCmd::Unknown) |
+            ZwaveCmd::Invalid |
+            ZwaveCmd::Unknown )
     }
 }

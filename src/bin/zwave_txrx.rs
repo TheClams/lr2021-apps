@@ -147,7 +147,7 @@ async fn main(spawner: Spawner) {
                     //  - When active send a NOP to the controller
                     //  - When spy, maybe enable filtering and switch among all networked seen ?
                     ButtonPressKind::Long => {
-                        if state.is_active && state.on_tx_done == false {
+                        if state.is_active && !state.on_tx_done {
                             info!("Sending NodeInfo");
                             state.phy_hdr.dst = 0xFF;
                             send_message(&mut lr2021, &mut state, &NPU_NODE_INFO).await;
@@ -174,7 +174,7 @@ async fn main(spawner: Spawner) {
                 lr2021.clear_rx_fifo().await.expect("ClearFifo");
                 // On TxDone either go in scan or send another command (happens after an ack typically)
                 // If an action is pending not supposed to be trigger by TX done, execute it immediately
-                if state.next_action != Action::None && ((intr.tx_done() && state.on_tx_done) || !state.on_tx_done) {
+                if state.next_action != Action::None && (intr.tx_done() || !state.on_tx_done) {
                     state.phy_hdr.hdr_type = ZwaveHdrType::SingleCast;
                     match state.next_action {
                         Action::NodeInfo => {
